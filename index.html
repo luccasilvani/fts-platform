@@ -516,13 +516,53 @@ tbody td{padding:12px 12px;font-size:.78rem;color:var(--cream);vertical-align:mi
     <!-- BENCHMARKS TAB -->
     <div class="tab-panel" id="tab-benchmarks">
       <div class="panel-header">
-        <div><div class="panel-title">academic benchmarks</div><div class="panel-subtitle" id="benchmarks-count">loading...</div></div>
+        <div>
+          <div class="panel-title">academic benchmarks</div>
+          <div class="panel-subtitle" id="benchmarks-count">loading...</div>
+        </div>
         <div class="panel-actions">
-          <button class="btn-add" onclick="openModal('benchmark')">+ add benchmark</button>
+          <button class="btn-sync" onclick="openAcademicSync()" style="font-size:.72rem">↻ sync academic data</button>
         </div>
       </div>
+
+      <!-- SYNC PANEL -->
+      <div id="acad-sync-panel" style="display:none;padding:16px 28px;border-bottom:1px solid var(--cream-border);background:rgba(43,41,38,.6)">
+        <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:10px">
+          <input class="api-key-input" id="acad-api-key" placeholder="college scorecard api key — api.data.gov (free)" style="flex:1;min-width:220px;max-width:340px">
+          <button class="btn-sync" id="acad-sync-btn" onclick="runAcademicSync()">▶ pull live data</button>
+          <button class="btn-sync" onclick="closeAcademicSync()" style="background:none;border-color:var(--cream-border);color:var(--cream-dim)">✕</button>
+        </div>
+        <div id="acad-progress-wrap" style="display:none">
+          <div style="display:flex;justify-content:space-between;margin-bottom:4px">
+            <span style="font-size:.68rem;color:var(--cream-dim)" id="acad-progress-label">starting...</span>
+            <span style="font-size:.68rem;color:var(--cream-dim)" id="acad-progress-pct">0%</span>
+          </div>
+          <div style="height:3px;border-radius:999px;background:rgba(241,238,230,.07);overflow:hidden">
+            <div id="acad-progress-fill" style="height:100%;background:var(--d1);border-radius:999px;width:0%;transition:width .3s"></div>
+          </div>
+        </div>
+        <div style="margin-top:10px;display:flex;gap:16px;flex-wrap:wrap">
+          <div style="font-size:.67rem;color:var(--cream-dim);line-height:1.8">
+            <span style="color:var(--cream);font-weight:600">what gets auto-populated:</span><br>
+            ✓ min sat (85% of avg admitted sat) &nbsp;·&nbsp; ✓ avg sat &nbsp;·&nbsp; ✓ admission rate &nbsp;·&nbsp; ✓ out-of-state tuition &nbsp;·&nbsp; ✓ location (city, state)
+          </div>
+          <div style="font-size:.67rem;color:var(--cream-dim);line-height:1.8">
+            <span style="color:var(--yellow);font-weight:600">manual entry required:</span><br>
+            · min gpa &nbsp;·&nbsp; min toefl &nbsp;·&nbsp; avg gpa accepted<br>
+            <span style="color:rgba(241,238,230,.35);font-size:.62rem">not in any public database — set by each school individually</span>
+          </div>
+          <div style="font-size:.67rem;color:var(--cream-dim);line-height:1.8">
+            <span style="color:var(--cream);font-weight:600">reference sources:</span><br>
+            <a href="https://nces.ed.gov/ipeds/use-the-data" target="_blank" style="color:var(--d1);text-decoration:none">↗ IPEDS data center</a> &nbsp;·&nbsp;
+            <a href="https://bigfuture.collegeboard.org" target="_blank" style="color:var(--d1);text-decoration:none">↗ College Board BigFuture</a> &nbsp;·&nbsp;
+            <a href="https://www.collegedata.com" target="_blank" style="color:var(--d1);text-decoration:none">↗ CollegeData</a>
+          </div>
+        </div>
+      </div>
+
       <div class="filters">
         <input class="filter-input" type="text" placeholder="search school..." id="bf-search" oninput="renderBenchmarks()">
+        <input class="filter-input" type="text" placeholder="location (city, state)..." id="bf-loc" oninput="renderBenchmarks()" style="max-width:160px">
         <select class="filter-input" id="bf-div" onchange="renderBenchmarks()">
           <option value="">all divisions</option>
           <option>D1</option><option>D2</option><option>D3</option>
@@ -530,18 +570,36 @@ tbody td{padding:12px 12px;font-size:.78rem;color:var(--cream);vertical-align:mi
         <input class="filter-input" type="text" placeholder="conference..." id="bf-conf" oninput="renderBenchmarks()">
         <select class="filter-input" id="bf-status" onchange="renderBenchmarks()">
           <option value="">all schools</option>
-          <option value="has">has benchmark</option>
-          <option value="missing">missing benchmark</option>
+          <option value="has">has data</option>
+          <option value="synced">auto-synced</option>
+          <option value="manual">manual only</option>
+          <option value="missing">no data yet</option>
         </select>
       </div>
       <div class="table-wrap">
         <table>
           <thead><tr>
-            <th>school</th><th>location</th><th>div</th><th>conference</th><th>min gpa</th><th>min sat</th><th>avg sat</th><th>adm rate</th><th>min toefl</th><th>avg gpa</th><th>tuition (out)</th><th>notes</th><th></th>
+            <th>school</th>
+            <th>location</th>
+            <th>div</th>
+            <th>conference</th>
+            <th style="color:var(--yellow)">min gpa ✎</th>
+            <th>min sat</th>
+            <th>avg sat</th>
+            <th>adm rate</th>
+            <th style="color:var(--yellow)">min toefl ✎</th>
+            <th style="color:var(--yellow)">avg gpa ✎</th>
+            <th>tuition (out)</th>
+            <th>sources</th>
+            <th></th>
           </tr></thead>
           <tbody id="benchmarks-body"></tbody>
         </table>
         <div class="empty-state" id="benchmarks-empty" style="display:none">no schools found.</div>
+      </div>
+      <div style="padding:10px 28px;border-top:1px solid var(--cream-border);font-size:.65rem;color:var(--cream-dim)">
+        <span style="color:var(--yellow)">✎ yellow columns</span> = manual entry only (not available in any public database) &nbsp;·&nbsp;
+        <span style="color:var(--green)">✓ synced</span> = auto-populated from us dept of education college scorecard api
       </div>
     </div>
 
@@ -1069,48 +1127,73 @@ function renderBenchmarks() {
   const search = document.getElementById('bf-search').value.toLowerCase();
   const div    = document.getElementById('bf-div').value;
   const conf   = document.getElementById('bf-conf').value.toLowerCase();
+  const loc    = document.getElementById('bf-loc')?.value.toLowerCase() || '';
   const status = document.getElementById('bf-status').value;
 
   let schools = state.schools.filter(s => {
     if (search && !s.name.toLowerCase().includes(search)) return false;
     if (div && s.division !== div) return false;
     if (conf && !(s.conference||'').toLowerCase().includes(conf)) return false;
+    if (loc && !(s.location||'').toLowerCase().includes(loc)) return false;
     const b = state.benchmarks.find(bm => bm.school_id === s.id);
-    if (status === 'has' && !b) return false;
+    const isSynced  = b && (b.min_sat || b.tuition || b.adm_rate);
+    const isManual  = b && !isSynced && (b.min_gpa || b.min_toefl || b.avg_gpa_accepted);
+    if (status === 'has'     && !b) return false;
+    if (status === 'synced'  && !isSynced) return false;
+    if (status === 'manual'  && !isManual) return false;
     if (status === 'missing' && b) return false;
     return true;
   });
 
-  const tbody = document.getElementById('benchmarks-body');
-  const empty = document.getElementById('benchmarks-empty');
+  const tbody   = document.getElementById('benchmarks-body');
+  const empty   = document.getElementById('benchmarks-empty');
   const countEl = document.getElementById('benchmarks-count');
-  const withData = state.benchmarks.length;
-  if (countEl) countEl.textContent = `${schools.length} schools shown · ${withData} with benchmark data`;
+  const syncedCount = state.benchmarks.filter(b => b.min_sat || b.tuition || b.adm_rate).length;
+  const manualCount = state.benchmarks.filter(b => b.min_gpa || b.min_toefl).length;
+  if (countEl) countEl.textContent = `${schools.length} shown · ${syncedCount} auto-synced · ${manualCount} with manual gpa/toefl`;
 
   if (!schools.length) { tbody.innerHTML = ''; empty.style.display = 'block'; return; }
   empty.style.display = 'none';
 
   tbody.innerHTML = schools.map(s => {
-    const b = state.benchmarks.find(bm => bm.school_id === s.id);
+    const b  = state.benchmarks.find(bm => bm.school_id === s.id);
     const dc = s.division === 'D1' ? 'var(--d1)' : s.division === 'D2' ? 'var(--d2)' : 'var(--d3)';
-    const hasSynced = b && (b.min_sat || b.tuition || b.adm_rate);
+    const isSynced = b && (b.min_sat || b.tuition || b.adm_rate);
+
+    // Per-school reference links
+    const nameEnc = encodeURIComponent(s.name);
+    const bigFutureLink = `https://bigfuture.collegeboard.org/college-search#find-my-fit/name/${nameEnc}`;
+    const collegeDataLink = `https://www.collegedata.com/search#/?search_type=college&name=${nameEnc}`;
+    const ipedsLink = `https://nces.ed.gov/collegenavigator/?q=${nameEnc}`;
+
+    // Admission rate color
+    const admColor = !b?.adm_rate ? 'var(--cream-dim)' : b.adm_rate < 30 ? 'var(--red)' : b.adm_rate < 60 ? 'var(--yellow)' : 'var(--green)';
+
     return `<tr>
-      <td style="font-weight:600">${s.name}${hasSynced ? ' <span style="font-size:.6rem;color:var(--green);font-weight:600">✓ synced</span>' : ''}</td>
-      <td style="font-size:.72rem;color:var(--cream-dim)">${s.location||'—'}</td>
-      <td><span style="color:${dc};font-size:.7rem;font-weight:700">${s.division||'—'}</span></td>
-      <td style="font-size:.72rem;color:var(--cream-dim)">${s.conference||'—'}</td>
-      <td>${b?.min_gpa??'—'}</td>
-      <td>${b?.min_sat ? `<span style="color:var(--cream)">${b.min_sat}</span>` : '—'}</td>
-      <td style="color:var(--cream-dim)">${b?.avg_sat??'—'}</td>
-      <td style="font-size:.72rem">${b?.adm_rate ? b.adm_rate+'%' : '—'}</td>
-      <td>${b?.min_toefl??'—'}</td>
-      <td>${b?.avg_gpa_accepted??'—'}</td>
-      <td style="font-size:.72rem;color:${b?.tuition?'var(--yellow)':'var(--cream-dim)'}">${b?.tuition ? '$'+Number(b.tuition).toLocaleString() : '—'}</td>
-      <td style="font-size:.72rem;color:var(--cream-dim);max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${b?.notes||'—'}</td>
-      <td><div class="row-actions">
-        <button class="btn-icon" onclick="openBenchmarkForSchool('${s.id}')">${b ? 'edit' : 'add'}</button>
-        ${b ? `<button class="btn-icon del" onclick="deleteRow('academic_benchmarks','${b.id}',loadBenchmarks)">del</button>` : ''}
-      </div></td>
+      <td style="font-weight:600;font-size:.77rem">${s.name} ${isSynced ? '<span style="font-size:.58rem;color:var(--green);font-weight:700">✓</span>' : ''}</td>
+      <td style="font-size:.7rem;color:var(--cream-dim);white-space:nowrap">${s.location||'<span style="opacity:.35">—</span>'}</td>
+      <td><span style="color:${dc};font-size:.68rem;font-weight:700">${s.division||'—'}</span></td>
+      <td style="font-size:.7rem;color:var(--cream-dim);white-space:nowrap">${s.conference||'—'}</td>
+      <td style="color:${b?.min_gpa ? 'var(--cream)' : 'rgba(241,238,230,.25)'}">${b?.min_gpa ?? '<span style="font-size:.65rem">add ↓</span>'}</td>
+      <td style="font-weight:600;color:${b?.min_sat ? 'var(--cream)' : 'var(--cream-dim)'}">${b?.min_sat ?? '—'}</td>
+      <td style="color:var(--cream-dim)">${b?.avg_sat ?? '—'}</td>
+      <td style="font-weight:600;color:${admColor}">${b?.adm_rate ? b.adm_rate+'%' : '—'}</td>
+      <td style="color:${b?.min_toefl ? 'var(--cream)' : 'rgba(241,238,230,.25)'}">${b?.min_toefl ?? '<span style="font-size:.65rem">add ↓</span>'}</td>
+      <td style="color:${b?.avg_gpa_accepted ? 'var(--cream)' : 'rgba(241,238,230,.25)'}">${b?.avg_gpa_accepted ?? '—'}</td>
+      <td style="font-weight:600;color:${b?.tuition ? 'var(--yellow)' : 'var(--cream-dim)'}">${b?.tuition ? '$'+Number(b.tuition).toLocaleString() : '—'}</td>
+      <td>
+        <div style="display:flex;gap:5px;flex-wrap:wrap">
+          <a href="${ipedsLink}" target="_blank" style="font-size:.6rem;color:var(--d2);text-decoration:none;border:1px solid rgba(160,155,196,.25);padding:2px 6px;border-radius:999px;white-space:nowrap" title="IPEDS / College Navigator">ipeds</a>
+          <a href="${bigFutureLink}" target="_blank" style="font-size:.6rem;color:var(--d1);text-decoration:none;border:1px solid rgba(142,181,163,.25);padding:2px 6px;border-radius:999px;white-space:nowrap" title="College Board BigFuture">bigfuture</a>
+          <a href="${collegeDataLink}" target="_blank" style="font-size:.6rem;color:var(--d3);text-decoration:none;border:1px solid rgba(196,160,138,.25);padding:2px 6px;border-radius:999px;white-space:nowrap" title="CollegeData">data</a>
+        </div>
+      </td>
+      <td>
+        <div class="row-actions">
+          <button class="btn-icon" onclick="openBenchmarkForSchool('${s.id}')">${b ? 'edit' : 'add'}</button>
+          ${b ? `<button class="btn-icon del" onclick="deleteRow('academic_benchmarks','${b.id}',loadBenchmarks)">del</button>` : ''}
+        </div>
+      </td>
     </tr>`;
   }).join('');
 }
@@ -1352,15 +1435,70 @@ function buildHexSVG(player, size) {
 }
 
 // ===== COLLEGE SCORECARD LIVE SYNC (matchmaker button) =====
+// ===== ACADEMIC SYNC PANEL =====
+function openAcademicSync() {
+  const panel = document.getElementById('acad-sync-panel');
+  panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
+  // share api key from matchmaker if already set
+  const mmKey = document.getElementById('mm-api-key')?.value;
+  if (mmKey && !document.getElementById('acad-api-key').value) {
+    document.getElementById('acad-api-key').value = mmKey;
+  }
+}
+function closeAcademicSync() {
+  document.getElementById('acad-sync-panel').style.display = 'none';
+}
+
+async function runAcademicSync() {
+  const apiKey = document.getElementById('acad-api-key').value.trim();
+  if (!apiKey) { toast('paste your college scorecard api key — get one free at api.data.gov', true); return; }
+
+  const btn   = document.getElementById('acad-sync-btn');
+  const wrap  = document.getElementById('acad-progress-wrap');
+  const fill  = document.getElementById('acad-progress-fill');
+  const label = document.getElementById('acad-progress-label');
+  const pct   = document.getElementById('acad-progress-pct');
+
+  btn.disabled = true; btn.textContent = '⏳ syncing...';
+  wrap.style.display = 'block';
+
+  // share key with matchmaker and verifier
+  const mm = document.getElementById('mm-api-key');
+  const vr = document.getElementById('ver-api-key');
+  if (mm) mm.value = apiKey;
+  if (vr) vr.value = apiKey;
+
+  const { synced, errors } = await scorecardBatchSync(
+    state.schools,
+    apiKey,
+    (i, total) => {
+      const p = Math.round((i / total) * 100);
+      fill.style.width = p + '%';
+      pct.textContent  = p + '%';
+      label.textContent = `syncing ${state.schools[i]?.name || ''}... (${i+1}/${total})`;
+    }
+  );
+
+  fill.style.width = '100%'; pct.textContent = '100%';
+  label.textContent = `done — ${synced} schools updated${errors ? ` · ${errors} not found in database` : ''}`;
+
+  await loadBenchmarks();
+  await loadSchools();
+
+  btn.disabled = false; btn.textContent = '▶ pull live data';
+  toast(`academic sync complete — ${synced} schools updated`);
+}
+
+// Matchmaker's sync button (shared entry point)
 async function syncLiveSchoolData() {
   const apiKey = document.getElementById('mm-api-key').value.trim();
-  if (!apiKey) { toast('enter your college scorecard api key first — get one free at api.data.gov', true); return; }
-  const btn = document.querySelector('.btn-sync');
-  btn.disabled = true; btn.textContent = '↻ syncing...';
-  const { synced, errors } = await scorecardBatchSync(state.schools.slice(0, 100), apiKey, () => {});
+  if (!apiKey) { toast('enter your college scorecard api key — get one free at api.data.gov', true); return; }
+  const btn = document.querySelector('#tab-scholarships .btn-sync');
+  if (btn) { btn.disabled = true; btn.textContent = '↻ syncing...'; }
+  const { synced, errors } = await scorecardBatchSync(state.schools, apiKey, () => {});
   await loadBenchmarks(); await loadSchools();
-  btn.disabled = false; btn.textContent = '↻ sync live data';
-  toast(`synced ${synced} schools${errors ? ` · ${errors} failed` : ''}`);
+  if (btn) { btn.disabled = false; btn.textContent = '↻ sync live data'; }
+  toast(`synced ${synced} schools${errors ? ` · ${errors} not found` : ''}`);
 }
 
 // ===== SHARED SCORECARD BATCH =====
@@ -1945,15 +2083,19 @@ function getModalForm(type, id) {
 
   if (type === 'benchmark') return `
     <div class="form-field"><label>school</label><select id="f-school"><option value="">select school...</option>${schoolOpts}</select></div>
-    <div class="form-row">
-      <div class="form-field"><label>min gpa</label><input type="number" step="0.01" id="f-gpa" value="${bench?.min_gpa||''}"></div>
-      <div class="form-field"><label>min sat</label><input type="number" id="f-sat" value="${bench?.min_sat||''}"></div>
+    <div style="padding:8px 0;font-size:.66rem;color:var(--yellow);line-height:1.6">
+      ✎ min gpa, min toefl, avg gpa = manual entry only. not available in any public database.<br>
+      <span style="color:var(--cream-dim)">sat, tuition, adm rate are auto-populated via ↻ sync academic data.</span>
     </div>
     <div class="form-row">
-      <div class="form-field"><label>min toefl</label><input type="number" id="f-toefl" value="${bench?.min_toefl||''}"></div>
-      <div class="form-field"><label>avg gpa accepted</label><input type="number" step="0.01" id="f-avgpa" value="${bench?.avg_gpa_accepted||''}"></div>
+      <div class="form-field"><label>min gpa ✎ manual</label><input type="number" step="0.01" min="0" max="4" id="f-gpa" placeholder="e.g. 2.8" value="${bench?.min_gpa||''}"></div>
+      <div class="form-field"><label>min toefl ✎ manual</label><input type="number" id="f-toefl" placeholder="e.g. 80" value="${bench?.min_toefl||''}"></div>
     </div>
-    <div class="form-field"><label>tuition (out-of-state / year, $)</label><input type="number" id="f-tuition" value="${bench?.tuition||''}"></div>
+    <div class="form-row">
+      <div class="form-field"><label>avg gpa accepted ✎ manual</label><input type="number" step="0.01" id="f-avgpa" placeholder="e.g. 3.4" value="${bench?.avg_gpa_accepted||''}"></div>
+      <div class="form-field"><label>min sat (auto-synced)</label><input type="number" id="f-sat" placeholder="auto-filled on sync" value="${bench?.min_sat||''}"></div>
+    </div>
+    <div class="form-field"><label>tuition out-of-state / yr $ (auto-synced)</label><input type="number" id="f-tuition" placeholder="auto-filled on sync" value="${bench?.tuition||''}"></div>
     <div class="form-field"><label>notes</label><textarea id="f-notes" rows="2">${bench?.notes||''}</textarea></div>`;
 
   if (type === 'scholarship') return `
