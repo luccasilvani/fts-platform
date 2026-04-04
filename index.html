@@ -81,14 +81,15 @@ nav{flex:1;padding:16px 12px;display:flex;flex-direction:column;gap:2px}
 #main{margin-left:var(--sidebar-w);flex:1;min-height:100vh;padding:0}
 .tab-panel{display:none;flex-direction:column;min-height:100vh}
 .tab-panel.active{display:flex}
-.panel-header{padding:32px 36px 24px;border-bottom:1px solid var(--cream-border);display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap}
-.panel-title{font-size:1.3rem;font-weight:800;letter-spacing:-.02em}
-.panel-subtitle{font-size:.73rem;color:var(--cream-dim);margin-top:2px}
-.panel-actions{display:flex;align-items:center;gap:10px}
-.btn-add{padding:10px 18px;background:var(--cream);color:var(--black);border:none;border-radius:999px;font-size:.75rem;font-weight:700;letter-spacing:.04em;cursor:pointer;transition:background .2s,transform .15s}
+.panel-header{padding:20px 28px 16px;border-bottom:1px solid var(--cream-border);display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:nowrap}
+.panel-title{font-size:1.15rem;font-weight:800;letter-spacing:-.02em;white-space:nowrap}
+.panel-subtitle{font-size:.7rem;color:var(--cream-dim);margin-top:2px}
+.panel-actions{display:flex;align-items:center;gap:8px;flex-shrink:0}
+.panel-toolbar{padding:8px 28px;border-bottom:1px solid var(--cream-border);display:flex;align-items:center;gap:7px;flex-wrap:wrap;background:rgba(43,41,38,.5)}
+.btn-add{padding:9px 16px;background:var(--cream);color:var(--black);border:none;border-radius:999px;font-size:.72rem;font-weight:700;letter-spacing:.03em;cursor:pointer;transition:background .2s,transform .15s;white-space:nowrap}
 .btn-add:hover{background:#fff;transform:translateY(-1px)}
-.btn-seed{padding:9px 16px;background:var(--cream-faint);color:var(--cream);border:1px solid var(--cream-border);border-radius:999px;font-size:.73rem;font-weight:600;cursor:pointer;transition:all .15s}
-.btn-seed:hover{background:rgba(241,238,230,.12)}
+.btn-seed{padding:6px 12px;background:var(--cream-faint);color:var(--cream-dim);border:1px solid var(--cream-border);border-radius:999px;font-size:.68rem;font-weight:600;cursor:pointer;transition:all .15s;white-space:nowrap}
+.btn-seed:hover{background:rgba(241,238,230,.12);color:var(--cream)}
 
 /* ===== FILTERS ===== */
 .filters{padding:16px 36px;border-bottom:1px solid var(--cream-border);display:flex;align-items:center;gap:10px;flex-wrap:wrap}
@@ -246,6 +247,23 @@ tbody td{padding:12px 12px;font-size:.78rem;color:var(--cream);vertical-align:mi
 .filter-dot{position:absolute;top:4px;right:4px;width:6px;height:6px;border-radius:50%;background:var(--d1);display:none}
 .btn-filter.has-filters .filter-dot{display:block}
 
+/* ===== CONTACT SCRAPER ===== */
+.vrow{display:grid;grid-template-columns:200px 72px 72px 72px 72px 90px 72px 130px 100px 1fr;gap:0;border-bottom:1px solid rgba(241,238,230,.04);align-items:start;font-size:.72rem;padding:0}
+.scrape-result{padding:6px 0 8px;display:flex;flex-direction:column;gap:4px}
+.scrape-email-chip{display:inline-flex;align-items:center;gap:6px;padding:3px 9px;border:1px solid var(--cream-border);border-radius:999px;font-size:.66rem;cursor:pointer;color:var(--cream-dim);background:none;transition:all .12s;max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.scrape-email-chip:hover{border-color:var(--d1);color:var(--d1)}
+.scrape-email-chip.applied{border-color:var(--green);color:var(--green);background:rgba(111,168,134,.08)}
+.scrape-status{font-size:.64rem;color:var(--cream-dim);font-style:italic}
+.scrape-status.scraping{color:var(--yellow)}
+.scrape-status.done{color:var(--green)}
+.scrape-status.blocked{color:var(--red)}
+.btn-scrape-one{padding:3px 9px;background:rgba(142,181,163,.08);color:var(--d1);border:1px solid rgba(142,181,163,.25);border-radius:999px;font-size:.64rem;cursor:pointer;transition:all .12s;white-space:nowrap}
+.btn-scrape-one:hover{background:rgba(142,181,163,.18)}
+.btn-google{padding:3px 9px;background:none;color:var(--cream-dim);border:1px solid var(--cream-border);border-radius:999px;font-size:.64rem;cursor:pointer;transition:all .12s;white-space:nowrap}
+.btn-google:hover{border-color:var(--cream);color:var(--cream)}
+.hunter-row{display:flex;gap:7px;align-items:center;flex-wrap:wrap;margin-top:8px;padding-top:8px;border-top:1px solid var(--cream-border)}
+.scrape-action-row{display:flex;gap:5px;flex-wrap:wrap;align-items:center;padding:5px 0}
+
 /* ===== MATCHMAKER ===== */
 .matchmaker-layout{display:flex;flex:1;overflow:hidden;min-height:0}
 .mm-left{width:270px;flex-shrink:0;border-right:1px solid var(--cream-border);overflow-y:auto;padding:14px}
@@ -353,13 +371,17 @@ tbody td{padding:12px 12px;font-size:.78rem;color:var(--cream);vertical-align:mi
       <div class="panel-header">
         <div><div class="panel-title">schools database</div><div class="panel-subtitle" id="schools-count">loading...</div></div>
         <div class="panel-actions">
-          <button class="btn-seed" onclick="seedSchools()">seed d1 schools</button>
-          <button class="btn-seed" onclick="seedD2Schools()">seed d2 schools</button>
-          <button class="btn-seed" onclick="seedD3Schools()">seed d3 schools</button>
-          <button class="btn-seed" onclick="openVerifier()" style="background:rgba(142,181,163,.08);border-color:rgba(142,181,163,.3);color:var(--d1)">↻ verify schools</button>
           <button class="btn-filter" id="adv-filter-btn" onclick="toggleAdvFilter()">⚙ filters<span class="filter-dot"></span></button>
           <button class="btn-add" onclick="openModal('school')">+ add school</button>
         </div>
+      </div>
+      <div class="panel-toolbar">
+        <span style="font-size:.6rem;font-weight:600;letter-spacing:.08em;color:var(--cream-dim);margin-right:2px">seed:</span>
+        <button class="btn-seed" onclick="seedSchools()">D1 schools</button>
+        <button class="btn-seed" onclick="seedD2Schools()">D2 schools</button>
+        <button class="btn-seed" onclick="seedD3Schools()">D3 schools</button>
+        <div style="width:1px;height:18px;background:var(--cream-border);margin:0 4px"></div>
+        <button class="btn-seed" onclick="openVerifier()" style="background:rgba(142,181,163,.07);border-color:rgba(142,181,163,.28);color:var(--d1)">↻ verify schools</button>
       </div>
       <div class="filters">
         <input class="filter-input" type="text" placeholder="search school..." id="sf-search" oninput="renderSchools()">
@@ -515,7 +537,7 @@ tbody td{padding:12px 12px;font-size:.78rem;color:var(--cream);vertical-align:mi
       <div class="table-wrap">
         <table>
           <thead><tr>
-            <th>school</th><th>div</th><th>conference</th><th>min gpa</th><th>min sat</th><th>min toefl</th><th>avg gpa</th><th>tuition (out)</th><th>notes</th><th></th>
+            <th>school</th><th>location</th><th>div</th><th>conference</th><th>min gpa</th><th>min sat</th><th>avg sat</th><th>adm rate</th><th>min toefl</th><th>avg gpa</th><th>tuition (out)</th><th>notes</th><th></th>
           </tr></thead>
           <tbody id="benchmarks-body"></tbody>
         </table>
@@ -634,8 +656,10 @@ tbody td{padding:12px 12px;font-size:.78rem;color:var(--cream);vertical-align:mi
   <div class="verifier-header">
     <span class="verifier-title">school verifier</span>
     <div class="verifier-controls">
-      <input class="api-key-input" id="ver-api-key" placeholder="college scorecard api key (api.data.gov)" style="width:240px">
+      <input class="api-key-input" id="ver-api-key" placeholder="college scorecard api key (api.data.gov)" style="width:220px">
+      <input class="api-key-input" id="ver-hunter-key" placeholder="hunter.io api key (optional)" style="width:190px">
       <button class="btn-sync" id="ver-sync-btn" onclick="runVerifier()">▶ run verification</button>
+      <button class="btn-sync" onclick="scrapeAllInvalid()" style="background:rgba(160,155,196,.08);color:var(--d2);border-color:rgba(160,155,196,.3)" id="ver-scrape-btn">⟳ scrape invalid contacts</button>
       <button class="btn-sync" style="background:rgba(196,122,122,.1);color:var(--red);border-color:rgba(196,122,122,.25)" onclick="closeVerifier()">✕ close</button>
     </div>
   </div>
@@ -667,23 +691,26 @@ tbody td{padding:12px 12px;font-size:.78rem;color:var(--cream);vertical-align:mi
       <div class="vsection">
         <div class="vsection-label">about</div>
         <div style="font-size:.67rem;color:var(--cream-dim);line-height:1.7">
-          academic data via us dept of education college scorecard api.<br><br>
-          contact validation checks email domain dns records.<br><br>
-          get a free api key at api.data.gov
+          <strong style="color:var(--cream)">academic data</strong> — college scorecard api (api.data.gov, free).<br><br>
+          <strong style="color:var(--cream)">contact validation</strong> — checks email domain dns records.<br><br>
+          <strong style="color:var(--cream)">contact repair</strong> — scrapes school athletics pages via proxy, then falls back to hunter.io.<br><br>
+          hunter.io free tier: 25 searches/month. paid plans available at hunter.io.<br><br>
+          <strong style="color:var(--cream)">🔍 google</strong> — opens a pre-filled search for any school that can't be auto-fixed.
         </div>
       </div>
     </div>
     <div class="verifier-main">
       <div class="vrow vrow-head">
         <div class="vcell">school</div>
-        <div class="vcell">division</div>
+        <div class="vcell">div</div>
         <div class="vcell">min sat</div>
         <div class="vcell">min gpa</div>
         <div class="vcell">avg gpa</div>
         <div class="vcell">tuition</div>
-        <div class="vcell">adm rate</div>
-        <div class="vcell">contact</div>
-        <div class="vcell">last synced</div>
+        <div class="vcell">adm %</div>
+        <div class="vcell">contact status</div>
+        <div class="vcell">synced</div>
+        <div class="vcell">contact repair</div>
       </div>
       <div id="ver-table-body"></div>
       <div id="ver-empty" style="padding:60px;text-align:center;color:var(--cream-dim);font-size:.8rem">click "run verification" to start — it will pull live data from the college scorecard api and validate contact email domains for all schools in your database.</div>
@@ -1032,8 +1059,9 @@ function renderStats() {
 
 // ===== BENCHMARKS =====
 async function loadBenchmarks() {
-  const { data } = await sb.from('academic_benchmarks').select('*, schools(name,division,conference)').order('updated_at', { ascending: false });
+  const { data } = await sb.from('academic_benchmarks').select('*, schools(name,division,conference,location)').order('updated_at', { ascending: false });
   state.benchmarks = data || [];
+  extraColsChecked = false; // re-detect schema on next sync
   renderBenchmarks();
 }
 
@@ -1065,16 +1093,20 @@ function renderBenchmarks() {
   tbody.innerHTML = schools.map(s => {
     const b = state.benchmarks.find(bm => bm.school_id === s.id);
     const dc = s.division === 'D1' ? 'var(--d1)' : s.division === 'D2' ? 'var(--d2)' : 'var(--d3)';
+    const hasSynced = b && (b.min_sat || b.tuition || b.adm_rate);
     return `<tr>
-      <td style="font-weight:600">${s.name}</td>
+      <td style="font-weight:600">${s.name}${hasSynced ? ' <span style="font-size:.6rem;color:var(--green);font-weight:600">✓ synced</span>' : ''}</td>
+      <td style="font-size:.72rem;color:var(--cream-dim)">${s.location||'—'}</td>
       <td><span style="color:${dc};font-size:.7rem;font-weight:700">${s.division||'—'}</span></td>
       <td style="font-size:.72rem;color:var(--cream-dim)">${s.conference||'—'}</td>
       <td>${b?.min_gpa??'—'}</td>
-      <td>${b?.min_sat??'—'}</td>
+      <td>${b?.min_sat ? `<span style="color:var(--cream)">${b.min_sat}</span>` : '—'}</td>
+      <td style="color:var(--cream-dim)">${b?.avg_sat??'—'}</td>
+      <td style="font-size:.72rem">${b?.adm_rate ? b.adm_rate+'%' : '—'}</td>
       <td>${b?.min_toefl??'—'}</td>
       <td>${b?.avg_gpa_accepted??'—'}</td>
-      <td style="font-size:.72rem">${b?.tuition ? '$'+Number(b.tuition).toLocaleString() : '—'}</td>
-      <td style="font-size:.72rem;color:var(--cream-dim);max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${b?.notes||'—'}</td>
+      <td style="font-size:.72rem;color:${b?.tuition?'var(--yellow)':'var(--cream-dim)'}">${b?.tuition ? '$'+Number(b.tuition).toLocaleString() : '—'}</td>
+      <td style="font-size:.72rem;color:var(--cream-dim);max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${b?.notes||'—'}</td>
       <td><div class="row-actions">
         <button class="btn-icon" onclick="openBenchmarkForSchool('${s.id}')">${b ? 'edit' : 'add'}</button>
         ${b ? `<button class="btn-icon del" onclick="deleteRow('academic_benchmarks','${b.id}',loadBenchmarks)">del</button>` : ''}
@@ -1332,15 +1364,40 @@ async function syncLiveSchoolData() {
 }
 
 // ===== SHARED SCORECARD BATCH =====
+// Track which extra columns exist in academic_benchmarks (detected at runtime)
+let extraColsChecked = false;
+let hasTuitionCol = false, hasAdmRateCol = false, hasAvgSatCol = false;
+
+async function detectExtraColumns() {
+  if (extraColsChecked) return;
+  // Try a minimal insert with extra cols to see which ones exist
+  // Safer: just attempt a select and check the shape of existing rows
+  if (state.benchmarks.length) {
+    const sample = state.benchmarks[0];
+    hasTuitionCol  = 'tuition'  in sample;
+    hasAdmRateCol  = 'adm_rate' in sample;
+    hasAvgSatCol   = 'avg_sat'  in sample;
+  } else {
+    // No rows yet — fetch one row with all columns to detect schema
+    const { data } = await sb.from('academic_benchmarks').select('*').limit(1);
+    if (data?.[0]) {
+      hasTuitionCol  = 'tuition'  in data[0];
+      hasAdmRateCol  = 'adm_rate' in data[0];
+      hasAvgSatCol   = 'avg_sat'  in data[0];
+    }
+  }
+  extraColsChecked = true;
+}
+
 async function scorecardBatchSync(schools, apiKey, onProgress) {
+  await detectExtraColumns();
   let synced = 0, errors = 0;
   for (let i = 0; i < schools.length; i++) {
     const school = schools[i];
     onProgress(i, schools.length);
     try {
-      const name = encodeURIComponent(school.name.replace(/university|college/gi,'').trim());
-      const url = `https://api.data.gov/ed/collegescorecard/v1/schools?school.name=${encodeURIComponent(school.name)}&fields=school.name,school.city,school.state,latest.admissions.sat_scores.average.overall,latest.admissions.admission_rate.overall,latest.cost.tuition.out_of_state,latest.admissions.act_scores.midpoint.cumulative&api_key=${apiKey}&per_page=1`;
-      const res = await fetch(url);
+      const url = `https://api.data.gov/ed/collegescorecard/v1/schools?school.name=${encodeURIComponent(school.name)}&fields=school.name,school.city,school.state,latest.admissions.sat_scores.average.overall,latest.admissions.admission_rate.overall,latest.cost.tuition.out_of_state&api_key=${apiKey}&per_page=1`;
+      const res = await fetch(url, { signal: AbortSignal.timeout(10000) });
       if (!res.ok) { errors++; continue; }
       const json = await res.json();
       const r = json.results?.[0];
@@ -1350,28 +1407,56 @@ async function scorecardBatchSync(schools, apiKey, onProgress) {
       const tuitionOut = r['latest.cost.tuition.out_of_state'];
       const city       = r['school.city'];
       const stateAbbr  = r['school.state'];
-      // Update school location if missing
-      if ((city && stateAbbr) && !school.location) {
-        await sb.from('schools').update({ location: `${city}, ${stateAbbr}` }).eq('id', school.id);
+
+      // Auto-fill location on schools table if blank
+      if (city && stateAbbr && !school.location) {
+        const locVal = `${city}, ${stateAbbr}`;
+        const { error: locErr } = await sb.from('schools').update({ location: locVal }).eq('id', school.id);
+        if (!locErr) school.location = locVal; // update in-memory
       }
-      // Upsert benchmark
-      if (satAvg || tuitionOut || admRate) {
-        const existing = state.benchmarks.find(b => b.school_id === school.id);
-        const admNote = admRate ? `[adm rate: ${(admRate*100).toFixed(1)}%]` : '';
-        const payload = {
-          school_id: school.id,
-          ...(satAvg     ? { min_sat: Math.round(satAvg * 0.85), avg_sat: Math.round(satAvg) } : {}),
-          ...(tuitionOut ? { tuition: tuitionOut } : {}),
-          ...(admRate    ? { adm_rate: Math.round(admRate * 100) } : {}),
-          notes: `${(existing?.notes||'').replace(/\[adm rate:[^\]]*\]/g,'').trim()} ${admNote}`.trim(),
-          updated_at: new Date().toISOString()
-        };
-        if (existing) await sb.from('academic_benchmarks').update(payload).eq('id', existing.id);
-        else await sb.from('academic_benchmarks').insert([payload]);
-        synced++;
+
+      if (!satAvg && !tuitionOut && !admRate) continue;
+
+      const existing = state.benchmarks.find(b => b.school_id === school.id);
+      const admNote  = admRate ? `[adm rate: ${(admRate*100).toFixed(1)}%]` : '';
+      const cleanNotes = `${(existing?.notes||'').replace(/\[adm rate:[^\]]*\]/g,'').trim()} ${admNote}`.trim();
+
+      // Build payload with only columns that exist
+      const payload = {
+        school_id: school.id,
+        notes: cleanNotes,
+        updated_at: new Date().toISOString(),
+        ...(satAvg ? { min_sat: Math.round(satAvg * 0.85) } : {}),
+        ...(satAvg && hasAvgSatCol  ? { avg_sat: Math.round(satAvg) } : {}),
+        ...(tuitionOut && hasTuitionCol  ? { tuition: tuitionOut } : {}),
+        ...(admRate    && hasAdmRateCol  ? { adm_rate: Math.round(admRate * 100) } : {}),
+      };
+
+      let writeErr;
+      if (existing) {
+        const { error } = await sb.from('academic_benchmarks').update(payload).eq('id', existing.id);
+        writeErr = error;
+      } else {
+        const { error } = await sb.from('academic_benchmarks').insert([payload]);
+        writeErr = error;
       }
+
+      if (writeErr) {
+        // Column likely missing — retry with only guaranteed base columns
+        if (writeErr.message?.includes('column')) {
+          const basePayload = {
+            school_id: school.id,
+            notes: cleanNotes,
+            updated_at: new Date().toISOString(),
+            ...(satAvg ? { min_sat: Math.round(satAvg * 0.85) } : {}),
+          };
+          if (existing) await sb.from('academic_benchmarks').update(basePayload).eq('id', existing.id);
+          else await sb.from('academic_benchmarks').insert([basePayload]);
+        } else { errors++; continue; }
+      }
+      synced++;
     } catch(e) { errors++; }
-    await new Promise(r => setTimeout(r, 120)); // rate limit
+    await new Promise(r => setTimeout(r, 120));
   }
   return { synced, errors };
 }
@@ -1472,6 +1557,9 @@ async function runVerifier() {
   if (mmKey && apiKey) mmKey.value = apiKey;
 }
 
+// scrapeState holds per-school scraping results: schoolId -> { status, emails, applied }
+const scrapeState = {};
+
 function renderVerifierTable() {
   const divF    = document.getElementById('ver-filter-div')?.value || '';
   const statusF = document.getElementById('ver-filter-status')?.value || '';
@@ -1490,7 +1578,7 @@ function renderVerifierTable() {
       const cs = r.res?.contactStatus || 'pending';
       if (statusF === 'ok') return cs === 'ok';
       if (statusF === 'warn') return !r.b || cs === 'warn';
-      if (statusF === 'err') return cs === 'invalid';
+      if (statusF === 'err') return cs === 'invalid' || cs === 'missing';
       return true;
     });
   }
@@ -1507,18 +1595,215 @@ function renderVerifierTable() {
 
   tbody.innerHTML = rows.map(({ s, res, b }) => {
     const cs = res?.contactStatus || 'pending';
-    return `<div class="vrow">
-      <div class="vcell" style="font-weight:600">${s.name}</div>
-      <div class="vcell"><span style="color:${dc(s.division)};font-weight:700;font-size:.7rem">${s.division||'—'}</span></div>
+    const sc = scrapeState[s.id];
+    const needsRepair = cs === 'invalid' || cs === 'missing' || cs === 'warn';
+
+    let repairHtml = '';
+    if (sc?.status === 'scraping') {
+      repairHtml = `<div class="scrape-status scraping">⟳ scraping website...</div>`;
+    } else if (sc?.status === 'hunter') {
+      repairHtml = `<div class="scrape-status scraping">⟳ checking hunter.io...</div>`;
+    } else if (sc?.status === 'done' && sc.emails.length) {
+      repairHtml = `<div class="scrape-result">
+        <div class="scrape-status done">found ${sc.emails.length} email${sc.emails.length>1?'s':''}</div>
+        ${sc.emails.slice(0,4).map(e => `
+          <button class="scrape-email-chip${sc.applied===e?' applied':''}" onclick="applyScrapedEmail('${s.id}','${e}')" title="click to save as head coach email">
+            ${sc.applied===e?'✓ ':''}<span style="overflow:hidden;text-overflow:ellipsis">${e}</span>
+          </button>`).join('')}
+      </div>`;
+    } else if (sc?.status === 'blocked') {
+      repairHtml = `<div class="scrape-action-row">
+        <div class="scrape-status blocked" style="flex:1">site blocked · </div>
+        <button class="btn-google" onclick="googleSearch('${s.name}')">🔍 google</button>
+      </div>`;
+    } else if (sc?.status === 'notfound') {
+      repairHtml = `<div class="scrape-action-row">
+        <div class="scrape-status blocked" style="flex:1">no emails found</div>
+        <button class="btn-google" onclick="googleSearch('${s.name}')">🔍 google</button>
+      </div>`;
+    } else if (needsRepair) {
+      repairHtml = `<div class="scrape-action-row">
+        <button class="btn-scrape-one" onclick="scrapeOneSchool('${s.id}')">⟳ find contact</button>
+        <button class="btn-google" onclick="googleSearch('${s.name}')">🔍 google</button>
+      </div>`;
+    }
+
+    return `<div class="vrow" id="vrow-${s.id}">
+      <div class="vcell" style="font-weight:600;font-size:.71rem">${s.name}</div>
+      <div class="vcell"><span style="color:${dc(s.division)};font-weight:700;font-size:.68rem">${s.division||'—'}</span></div>
       <div class="vcell">${b?.min_sat??'—'}</div>
       <div class="vcell">${b?.min_gpa??'—'}</div>
       <div class="vcell">${b?.avg_gpa_accepted??'—'}</div>
       <div class="vcell">${b?.tuition ? '$'+Number(b.tuition).toLocaleString() : '—'}</div>
       <div class="vcell">${b?.adm_rate ? b.adm_rate+'%' : '—'}</div>
-      <div class="vcell">${statusBadge(cs)}</div>
-      <div class="vcell" style="font-size:.65rem;color:var(--cream-dim)">${b?.updated_at ? new Date(b.updated_at).toLocaleDateString() : '—'}</div>
+      <div class="vcell">${statusBadge(cs)}<br><span style="font-size:.62rem;color:var(--cream-dim)">${s.head_coach_email||'no email'}</span></div>
+      <div class="vcell" style="font-size:.63rem;color:var(--cream-dim)">${b?.updated_at ? new Date(b.updated_at).toLocaleDateString() : '—'}</div>
+      <div class="vcell">${repairHtml}</div>
     </div>`;
   }).join('');
+}
+
+// ===== CONTACT SCRAPER ENGINE =====
+const PROXIES = [
+  url => `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`,
+  url => `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(url)}`,
+];
+
+async function fetchViaProxy(url) {
+  for (const proxy of PROXIES) {
+    try {
+      const res = await fetch(proxy(url), { signal: AbortSignal.timeout(8000) });
+      if (!res.ok) continue;
+      const json = await res.json().catch(() => null);
+      const text = json?.contents || await res.text();
+      if (text && text.length > 200) return text;
+    } catch {}
+  }
+  return null;
+}
+
+function extractEmails(html, domain) {
+  if (!html) return [];
+  // decode HTML entities
+  const decoded = html.replace(/&#64;/g,'@').replace(/\[at\]/gi,'@').replace(/\(at\)/gi,'@').replace(/\s+at\s+/gi,'@').replace(/&#46;/g,'.').replace(/\[dot\]/gi,'.').replace(/\(dot\)/gi,'.');
+  const all = decoded.match(/[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}/g) || [];
+  // Prioritize .edu emails and soccer-related ones
+  const edu   = [...new Set(all.filter(e => e.endsWith('.edu')))];
+  const other = [...new Set(all.filter(e => !e.endsWith('.edu') && !e.includes('example') && !e.includes('sentry') && !e.includes('w3.org')))];
+  // Score by soccer relevance
+  const scored = [...edu, ...other].map(e => {
+    let score = edu.includes(e) ? 10 : 0;
+    const lower = e.toLowerCase();
+    if (/soccer|msoccer|msocc|coach|atletico/.test(lower)) score += 20;
+    if (domain && lower.includes(domain.split('.')[0])) score += 5;
+    return { e, score };
+  });
+  return scored.sort((a,b) => b.score-a.score).map(x => x.e).slice(0,8);
+}
+
+function guessAthleticsUrls(school) {
+  const name = school.name.toLowerCase().replace(/university|college|of\s|the\s/g,'').replace(/[^a-z0-9]/g,'').trim();
+  const domain = school.head_coach_email?.split('@')[1] || `${name}.edu`;
+  const base = `https://${domain}`;
+  return [
+    `${base}/sports/mens-soccer`,
+    `${base}/sports/msoc`,
+    `${base}/athletics/sports/mens-soccer`,
+    `https://athletics.${domain}/sports/mens-soccer`,
+    `https://gocolonials.com/sports/msoc`,  // example — will 404 for most
+    school.website || null,
+  ].filter(Boolean);
+}
+
+async function tryScrapeSchool(school) {
+  const urls = guessAthleticsUrls(school);
+  const domain = school.head_coach_email?.split('@')[1];
+  for (const url of urls) {
+    const html = await fetchViaProxy(url);
+    if (!html) continue;
+    const emails = extractEmails(html, domain);
+    if (emails.length) return { status:'done', emails };
+  }
+  return null;
+}
+
+async function tryHunterSearch(school, hunterKey) {
+  if (!hunterKey) return null;
+  const domain = school.head_coach_email?.split('@')[1];
+  if (!domain) return null;
+  try {
+    const url = `https://api.hunter.io/v2/domain-search?domain=${domain}&type=personal&seniority=senior&department=management&api_key=${hunterKey}&limit=5`;
+    const res = await fetch(url, { signal: AbortSignal.timeout(6000) });
+    const json = await res.json();
+    if (json.data?.emails?.length) {
+      return { status:'done', emails: json.data.emails.map(e => e.value) };
+    }
+  } catch {}
+  return null;
+}
+
+function googleSearch(schoolName) {
+  const q = encodeURIComponent(`${schoolName} men's soccer head coach email`);
+  window.open(`https://www.google.com/search?q=${q}`, '_blank');
+}
+
+function updateScrapeRow(schoolId) {
+  const row = document.getElementById(`vrow-${schoolId}`);
+  if (!row) { renderVerifierTable(); return; }
+  const s  = state.schools.find(sc => sc.id === schoolId);
+  const sc = scrapeState[schoolId];
+  const cell = row.querySelector('.vcell:last-child');
+  if (!cell || !sc) return;
+
+  if (sc.status === 'scraping' || sc.status === 'hunter') {
+    cell.innerHTML = `<div class="scrape-status scraping">⟳ ${sc.status === 'hunter' ? 'checking hunter.io...' : 'scraping website...'}</div>`;
+  } else if (sc.status === 'done' && sc.emails.length) {
+    cell.innerHTML = `<div class="scrape-result">
+      <div class="scrape-status done">found ${sc.emails.length} email${sc.emails.length>1?'s':''}</div>
+      ${sc.emails.slice(0,4).map(e => `
+        <button class="scrape-email-chip${sc.applied===e?' applied':''}" onclick="applyScrapedEmail('${schoolId}','${e}')" title="click to save as head coach email">
+          ${sc.applied===e?'✓ ':''}<span style="overflow:hidden;text-overflow:ellipsis">${e}</span>
+        </button>`).join('')}
+    </div>`;
+  } else {
+    cell.innerHTML = `<div class="scrape-action-row">
+      <div class="scrape-status blocked" style="flex:1">${sc.status === 'notfound' ? 'no emails found' : 'site blocked'}</div>
+      <button class="btn-google" onclick="googleSearch('${s?.name||''}')">🔍 google</button>
+    </div>`;
+  }
+}
+
+async function scrapeOneSchool(schoolId) {
+  const school = state.schools.find(s => s.id === schoolId);
+  if (!school) return;
+  const hunterKey = document.getElementById('ver-hunter-key')?.value.trim();
+
+  scrapeState[schoolId] = { status: 'scraping', emails: [], applied: null };
+  updateScrapeRow(schoolId);
+
+  // Try website scraping first
+  const scraped = await tryScrapeSchool(school);
+  if (scraped) { scrapeState[schoolId] = { ...scraped, applied: null }; updateScrapeRow(schoolId); return; }
+
+  // Fallback: Hunter.io
+  if (hunterKey) {
+    scrapeState[schoolId] = { status: 'hunter', emails: [], applied: null };
+    updateScrapeRow(schoolId);
+    const hunted = await tryHunterSearch(school, hunterKey);
+    if (hunted) { scrapeState[schoolId] = { ...hunted, applied: null }; updateScrapeRow(schoolId); return; }
+  }
+
+  scrapeState[schoolId] = { status: 'blocked', emails: [], applied: null };
+  updateScrapeRow(schoolId);
+}
+
+async function scrapeAllInvalid() {
+  const btn = document.getElementById('ver-scrape-btn');
+  btn.disabled = true; btn.textContent = '⟳ scraping...';
+  const invalid = verifierResults.filter(r => r.contactStatus === 'invalid' || r.contactStatus === 'missing' || r.contactStatus === 'warn');
+  for (const r of invalid) {
+    await scrapeOneSchool(r.school.id);
+    await new Promise(res => setTimeout(res, 300));
+  }
+  btn.disabled = false; btn.textContent = '⟳ scrape invalid contacts';
+  const found = Object.values(scrapeState).filter(s => s.status === 'done' && s.emails.length).length;
+  toast(`scrape complete — found contacts for ${found} schools`);
+}
+
+async function applyScrapedEmail(schoolId, email) {
+  const { error } = await sb.from('schools').update({ head_coach_email: email }).eq('id', schoolId);
+  if (error) { toast(error.message, true); return; }
+  scrapeState[schoolId].applied = email;
+  // re-validate the new email
+  const newStatus = await validateEmailDomain(email);
+  const vr = verifierResults.find(r => r.school.id === schoolId);
+  if (vr) vr.contactStatus = newStatus;
+  // update local state
+  const s = state.schools.find(sc => sc.id === schoolId);
+  if (s) s.head_coach_email = email;
+  updateScrapeRow(schoolId);
+  updateVerifierSummary();
+  toast(`saved — ${email}`);
 }
 
 // ===== EVENTS =====
