@@ -78,7 +78,7 @@ nav{flex:1;padding:16px 12px;display:flex;flex-direction:column;gap:2px}
 .btn-logout:hover{border-color:var(--red);color:var(--red)}
 
 /* ===== MAIN CONTENT ===== */
-#main{margin-left:var(--sidebar-w);flex:1;min-height:100vh;padding:0}
+#main{margin-left:var(--sidebar-w);width:calc(100vw - var(--sidebar-w));min-height:100vh;padding:0;overflow-x:hidden}
 .tab-panel{display:none;flex-direction:column;min-height:100vh;min-width:0;width:100%}
 .tab-panel.active{display:flex}
 .panel-header{padding:20px 28px 16px;border-bottom:1px solid var(--cream-border);display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:nowrap}
@@ -99,12 +99,12 @@ nav{flex:1;padding:16px 12px;display:flex;flex-direction:column;gap:2px}
 select.filter-input option{background:#2B2926;color:var(--cream)}
 
 /* ===== TABLE ===== */
-.table-wrap{flex:1;overflow-x:auto;padding:0 36px 36px;-webkit-overflow-scrolling:touch;min-width:0}
+.table-wrap{flex:1;overflow-x:auto;overflow-y:visible;padding:0 0 36px;-webkit-overflow-scrolling:touch;min-width:0}
 .table-wrap::-webkit-scrollbar{height:6px}
 .table-wrap::-webkit-scrollbar-track{background:rgba(241,238,230,.04);border-radius:999px}
 .table-wrap::-webkit-scrollbar-thumb{background:rgba(241,238,230,.18);border-radius:999px}
 .table-wrap::-webkit-scrollbar-thumb:hover{background:rgba(241,238,230,.32)}
-table{width:100%;border-collapse:collapse;margin-top:20px;min-width:900px}
+table{width:100%;border-collapse:collapse;margin-top:20px;min-width:900px;padding:0 36px;box-sizing:border-box}
 /* per-tab min widths so every column stays reachable at 100% zoom */
 #tab-schools    .table-wrap table{min-width:1000px}
 #tab-stats      .table-wrap table{min-width:1100px}
