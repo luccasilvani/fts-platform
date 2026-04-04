@@ -183,6 +183,69 @@ tbody td{padding:12px 12px;font-size:.78rem;color:var(--cream);vertical-align:mi
 .match-bar{height:3px;border-radius:999px;background:rgba(241,238,230,.08);margin-top:6px;overflow:hidden}
 .match-fill{height:100%;background:var(--d1);border-radius:999px}
 
+/* ===== VERIFIER OVERLAY ===== */
+#verifier-overlay{position:fixed;inset:0;background:rgba(43,41,38,.97);z-index:180;display:none;flex-direction:column;overflow:hidden}
+#verifier-overlay.show{display:flex}
+.verifier-header{padding:24px 36px;border-bottom:1px solid var(--cream-border);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:14px}
+.verifier-title{font-size:1.1rem;font-weight:800;letter-spacing:-.02em}
+.verifier-controls{display:flex;gap:9px;align-items:center;flex-wrap:wrap}
+.verifier-body{display:flex;flex:1;overflow:hidden}
+.verifier-sidebar{width:240px;flex-shrink:0;border-right:1px solid var(--cream-border);padding:18px;overflow-y:auto;display:flex;flex-direction:column;gap:10px}
+.verifier-main{flex:1;overflow-y:auto;padding:20px 28px}
+.vsection{margin-bottom:14px}
+.vsection-label{font-size:.6rem;font-weight:600;letter-spacing:.09em;color:var(--cream-dim);margin-bottom:6px}
+.vstat{display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid rgba(241,238,230,.05);font-size:.75rem}
+.vstat-val{font-weight:700}
+.vstatus-ok{color:var(--green)}
+.vstatus-warn{color:var(--yellow)}
+.vstatus-err{color:var(--red)}
+.vstatus-pending{color:var(--cream-dim)}
+.vrow{display:grid;grid-template-columns:220px 90px 80px 80px 80px 100px 90px 90px 1fr;gap:0;border-bottom:1px solid rgba(241,238,230,.04);align-items:center;font-size:.72rem;padding:0}
+.vrow:hover{background:rgba(241,238,230,.03)}
+.vcell{padding:9px 10px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.vrow-head{font-size:.6rem;font-weight:600;letter-spacing:.07em;color:var(--cream-dim);border-bottom:1px solid var(--cream-border);position:sticky;top:0;background:#2B2926;z-index:2}
+.vstatus-badge{display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:999px;font-size:.62rem;font-weight:600}
+.vstatus-badge.ok{background:rgba(111,168,134,.15);color:var(--green)}
+.vstatus-badge.warn{background:rgba(196,176,122,.15);color:var(--yellow)}
+.vstatus-badge.err{background:rgba(196,122,122,.15);color:var(--red)}
+.vstatus-badge.pending{background:rgba(241,238,230,.06);color:var(--cream-dim)}
+.vapi-row{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:6px}
+.vprogress{height:3px;border-radius:999px;background:rgba(241,238,230,.07);overflow:hidden;margin:8px 0}
+.vprogress-fill{height:100%;background:var(--d1);border-radius:999px;transition:width .3s}
+.vfilter-group{margin-bottom:12px}
+.vfilter-group label{display:block;font-size:.62rem;font-weight:600;letter-spacing:.07em;color:var(--cream-dim);margin-bottom:5px}
+.range-row{display:flex;gap:6px;align-items:center}
+.range-row input[type=number]{width:75px;padding:7px 9px;background:var(--cream-faint);border:1px solid var(--cream-border);border-radius:7px;color:var(--cream);font-size:.72rem;outline:none}
+.range-sep{font-size:.72rem;color:var(--cream-dim)}
+.multi-check{display:flex;flex-wrap:wrap;gap:5px}
+.multi-check label{display:flex;align-items:center;gap:4px;font-size:.72rem;cursor:pointer;padding:4px 9px;border:1px solid var(--cream-border);border-radius:999px;color:var(--cream-dim);transition:all .12s}
+.multi-check label:hover{border-color:var(--cream);color:var(--cream)}
+.multi-check input[type=checkbox]{accent-color:var(--d1);width:12px;height:12px}
+.multi-check input:checked + span{color:var(--cream)}
+.multi-check label:has(input:checked){border-color:rgba(142,181,163,.5);background:rgba(142,181,163,.08);color:var(--cream)}
+
+/* ===== ADVANCED FILTER DRAWER ===== */
+#adv-filter-drawer{position:fixed;top:0;right:0;bottom:0;width:310px;background:var(--black-light);border-left:1px solid var(--cream-border);z-index:100;transform:translateX(100%);transition:transform .35s var(--spring);overflow-y:auto;padding:24px 20px;display:flex;flex-direction:column;gap:0}
+#adv-filter-drawer.open{transform:translateX(0)}
+.afd-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;padding-bottom:14px;border-bottom:1px solid var(--cream-border)}
+.afd-title{font-size:.9rem;font-weight:700}
+.afd-group{margin-bottom:18px}
+.afd-label{font-size:.62rem;font-weight:600;letter-spacing:.08em;color:var(--cream-dim);margin-bottom:7px;display:block}
+.afd-chips{display:flex;flex-wrap:wrap;gap:5px}
+.afd-chip{padding:5px 11px;border:1px solid var(--cream-border);border-radius:999px;font-size:.7rem;cursor:pointer;color:var(--cream-dim);background:none;transition:all .12s}
+.afd-chip.active{border-color:rgba(142,181,163,.5);background:rgba(142,181,163,.1);color:var(--cream)}
+.afd-range{display:flex;gap:7px;align-items:center}
+.afd-range input{flex:1;padding:8px 10px;background:var(--cream-faint);border:1px solid var(--cream-border);border-radius:7px;color:var(--cream);font-size:.75rem;outline:none;min-width:0}
+.afd-range input:focus{border-color:rgba(241,238,230,.3)}
+.afd-sep{font-size:.72rem;color:var(--cream-dim);flex-shrink:0}
+.btn-afd-reset{width:100%;margin-top:6px;padding:10px;background:none;border:1px solid var(--cream-border);border-radius:9px;color:var(--cream-dim);font-size:.75rem;cursor:pointer;transition:all .15s}
+.btn-afd-reset:hover{border-color:var(--red);color:var(--red)}
+.btn-filter{padding:9px 15px;background:var(--cream-faint);color:var(--cream);border:1px solid var(--cream-border);border-radius:999px;font-size:.73rem;font-weight:600;cursor:pointer;transition:all .15s;position:relative}
+.btn-filter:hover{background:rgba(241,238,230,.12)}
+.btn-filter.has-filters{border-color:rgba(142,181,163,.5);color:var(--d1)}
+.filter-dot{position:absolute;top:4px;right:4px;width:6px;height:6px;border-radius:50%;background:var(--d1);display:none}
+.btn-filter.has-filters .filter-dot{display:block}
+
 /* ===== MATCHMAKER ===== */
 .matchmaker-layout{display:flex;flex:1;overflow:hidden;min-height:0}
 .mm-left{width:270px;flex-shrink:0;border-right:1px solid var(--cream-border);overflow-y:auto;padding:14px}
@@ -293,11 +356,14 @@ tbody td{padding:12px 12px;font-size:.78rem;color:var(--cream);vertical-align:mi
           <button class="btn-seed" onclick="seedSchools()">seed d1 schools</button>
           <button class="btn-seed" onclick="seedD2Schools()">seed d2 schools</button>
           <button class="btn-seed" onclick="seedD3Schools()">seed d3 schools</button>
+          <button class="btn-seed" onclick="openVerifier()" style="background:rgba(142,181,163,.08);border-color:rgba(142,181,163,.3);color:var(--d1)">↻ verify schools</button>
+          <button class="btn-filter" id="adv-filter-btn" onclick="toggleAdvFilter()">⚙ filters<span class="filter-dot"></span></button>
           <button class="btn-add" onclick="openModal('school')">+ add school</button>
         </div>
       </div>
       <div class="filters">
         <input class="filter-input" type="text" placeholder="search school..." id="sf-search" oninput="renderSchools()">
+        <input class="filter-input" type="text" placeholder="state (e.g. CA)" id="sf-state" oninput="renderSchools()" style="max-width:110px">
         <select class="filter-input" id="sf-conf" onchange="renderSchools()">
           <option value="">all conferences</option>
           <option>ACC</option><option>AAC</option><option>AEC</option><option>A10</option>
@@ -320,7 +386,7 @@ tbody td{padding:12px 12px;font-size:.78rem;color:var(--cream);vertical-align:mi
       <div class="table-wrap">
         <table>
           <thead><tr>
-            <th>school</th><th>conference</th><th>division</th>
+            <th>school</th><th>location</th><th>conference</th><th>division</th>
             <th>head coach email</th><th>asst 1</th><th>asst 2</th>
             <th>phone</th><th>verified</th><th></th>
           </tr></thead>
@@ -504,6 +570,127 @@ tbody td{padding:12px 12px;font-size:.78rem;color:var(--cream);vertical-align:mi
   </main>
 </div>
 
+<!-- ADVANCED FILTER DRAWER -->
+<div id="adv-filter-drawer">
+  <div class="afd-header">
+    <span class="afd-title">advanced filters</span>
+    <button style="background:none;border:none;color:var(--cream-dim);font-size:1.1rem;cursor:pointer" onclick="closeAdvFilter()">✕</button>
+  </div>
+  <div class="afd-group">
+    <span class="afd-label">division</span>
+    <div class="afd-chips" id="afd-div">
+      <button class="afd-chip" data-val="D1" onclick="toggleAfdChip(this,'afd-div')">D1</button>
+      <button class="afd-chip" data-val="D2" onclick="toggleAfdChip(this,'afd-div')">D2</button>
+      <button class="afd-chip" data-val="D3" onclick="toggleAfdChip(this,'afd-div')">D3</button>
+    </div>
+  </div>
+  <div class="afd-group">
+    <span class="afd-label">state</span>
+    <div class="afd-chips" id="afd-state" style="max-height:110px;overflow-y:auto"></div>
+  </div>
+  <div class="afd-group">
+    <span class="afd-label">gpa range</span>
+    <div class="afd-range">
+      <input type="number" id="afd-gpa-min" placeholder="min" step="0.1" min="0" max="4" oninput="applyAdvFilters()">
+      <span class="afd-sep">–</span>
+      <input type="number" id="afd-gpa-max" placeholder="max" step="0.1" min="0" max="4" oninput="applyAdvFilters()">
+    </div>
+  </div>
+  <div class="afd-group">
+    <span class="afd-label">sat range</span>
+    <div class="afd-range">
+      <input type="number" id="afd-sat-min" placeholder="min" step="10" min="400" max="1600" oninput="applyAdvFilters()">
+      <span class="afd-sep">–</span>
+      <input type="number" id="afd-sat-max" placeholder="max" step="10" min="400" max="1600" oninput="applyAdvFilters()">
+    </div>
+  </div>
+  <div class="afd-group">
+    <span class="afd-label">tuition (out-of-state, $/yr)</span>
+    <div class="afd-range">
+      <input type="number" id="afd-tuit-min" placeholder="min" step="1000" oninput="applyAdvFilters()">
+      <span class="afd-sep">–</span>
+      <input type="number" id="afd-tuit-max" placeholder="max" step="1000" oninput="applyAdvFilters()">
+    </div>
+  </div>
+  <div class="afd-group">
+    <span class="afd-label">admission rate</span>
+    <div class="afd-chips" id="afd-adm">
+      <button class="afd-chip" data-val="selective" onclick="toggleAfdChip(this,'afd-adm')">selective (&lt;30%)</button>
+      <button class="afd-chip" data-val="moderate" onclick="toggleAfdChip(this,'afd-adm')">moderate (30–60%)</button>
+      <button class="afd-chip" data-val="open" onclick="toggleAfdChip(this,'afd-adm')">open (&gt;60%)</button>
+    </div>
+  </div>
+  <div class="afd-group">
+    <span class="afd-label">verified contacts only</span>
+    <div class="afd-chips" id="afd-ver">
+      <button class="afd-chip" data-val="yes" onclick="toggleAfdChip(this,'afd-ver')">verified</button>
+    </div>
+  </div>
+  <button class="btn-afd-reset" onclick="resetAdvFilters()">reset all filters</button>
+</div>
+
+<!-- VERIFIER OVERLAY -->
+<div id="verifier-overlay">
+  <div class="verifier-header">
+    <span class="verifier-title">school verifier</span>
+    <div class="verifier-controls">
+      <input class="api-key-input" id="ver-api-key" placeholder="college scorecard api key (api.data.gov)" style="width:240px">
+      <button class="btn-sync" id="ver-sync-btn" onclick="runVerifier()">▶ run verification</button>
+      <button class="btn-sync" style="background:rgba(196,122,122,.1);color:var(--red);border-color:rgba(196,122,122,.25)" onclick="closeVerifier()">✕ close</button>
+    </div>
+  </div>
+  <div id="ver-progress" style="padding:0 28px"><div class="vprogress"><div class="vprogress-fill" id="ver-progress-fill" style="width:0%"></div></div></div>
+  <div class="verifier-body">
+    <div class="verifier-sidebar">
+      <div class="vsection">
+        <div class="vsection-label">verification summary</div>
+        <div class="vstat"><span>schools total</span><span class="vstat-val" id="vsum-total">—</span></div>
+        <div class="vstat"><span>academic data</span><span class="vstat-val vstatus-ok" id="vsum-academic">—</span></div>
+        <div class="vstat"><span>contacts valid</span><span class="vstat-val vstatus-ok" id="vsum-contacts">—</span></div>
+        <div class="vstat"><span>contacts invalid</span><span class="vstat-val vstatus-err" id="vsum-invalid">—</span></div>
+        <div class="vstat"><span>tuition data</span><span class="vstat-val vstatus-warn" id="vsum-tuition">—</span></div>
+        <div class="vstat"><span>stats logged</span><span class="vstat-val" id="vsum-stats">—</span></div>
+      </div>
+      <div class="vsection">
+        <div class="vsection-label">filters</div>
+        <select class="filter-input" id="ver-filter-div" onchange="renderVerifierTable()" style="width:100%;margin-bottom:6px">
+          <option value="">all divisions</option>
+          <option>D1</option><option>D2</option><option>D3</option>
+        </select>
+        <select class="filter-input" id="ver-filter-status" onchange="renderVerifierTable()" style="width:100%">
+          <option value="">all statuses</option>
+          <option value="ok">contact valid</option>
+          <option value="warn">missing data</option>
+          <option value="err">contact invalid</option>
+        </select>
+      </div>
+      <div class="vsection">
+        <div class="vsection-label">about</div>
+        <div style="font-size:.67rem;color:var(--cream-dim);line-height:1.7">
+          academic data via us dept of education college scorecard api.<br><br>
+          contact validation checks email domain dns records.<br><br>
+          get a free api key at api.data.gov
+        </div>
+      </div>
+    </div>
+    <div class="verifier-main">
+      <div class="vrow vrow-head">
+        <div class="vcell">school</div>
+        <div class="vcell">division</div>
+        <div class="vcell">min sat</div>
+        <div class="vcell">min gpa</div>
+        <div class="vcell">avg gpa</div>
+        <div class="vcell">tuition</div>
+        <div class="vcell">adm rate</div>
+        <div class="vcell">contact</div>
+        <div class="vcell">last synced</div>
+      </div>
+      <div id="ver-table-body"></div>
+      <div id="ver-empty" style="padding:60px;text-align:center;color:var(--cream-dim);font-size:.8rem">click "run verification" to start — it will pull live data from the college scorecard api and validate contact email domains for all schools in your database.</div>
+    </div>
+  </div>
+</div>
+
 <!-- MODAL -->
 <div id="modal-overlay" onclick="closeModalOnBg(event)">
   <div class="modal" id="modal">
@@ -562,6 +749,10 @@ function startApp(user) {
   document.getElementById('app').classList.add('show');
   const name = user.email.split('@')[0];
   document.getElementById('sb-name').textContent = name;
+  // inject state chips
+  const states = ['AL','AK','AZ','AR','CA','CO','CT','DE','FL','GA','HI','ID','IL','IN','IA','KS','KY','LA','ME','MD','MA','MI','MN','MS','MO','MT','NE','NV','NH','NJ','NM','NY','NC','ND','OH','OK','OR','PA','RI','SC','SD','TN','TX','UT','VT','VA','WA','WV','WI','WY'];
+  const stateChips = document.getElementById('afd-state');
+  if (stateChips) stateChips.innerHTML = states.map(s => `<button class="afd-chip" data-val="${s}" onclick="toggleAfdChip(this,'afd-state')">${s}</button>`).join('');
   loadAll();
 }
 
@@ -592,19 +783,41 @@ async function loadSchools() {
   renderSchools();
 }
 
+// advanced filter state
+let advFilters = { divs:[], states:[], admRate:'', gpaMin:'', gpaMax:'', satMin:'', satMax:'', tuitMin:'', tuitMax:'', verifiedOnly:false };
+
 function renderSchools() {
   const search = document.getElementById('sf-search').value.toLowerCase();
   const conf   = document.getElementById('sf-conf').value;
   const div    = document.getElementById('sf-div').value;
   const ver    = document.getElementById('sf-ver').value;
+  const stateQ = document.getElementById('sf-state').value.toUpperCase().trim();
+
   let rows = state.schools.filter(s => {
     if (search && !s.name.toLowerCase().includes(search)) return false;
     if (conf && s.conference !== conf) return false;
     if (div && s.division !== div) return false;
     if (ver === 'true' && !s.verified) return false;
     if (ver === 'false' && s.verified) return false;
+    if (stateQ && !extractState(s.location||s.state||'').includes(stateQ)) return false;
+    // advanced filters
+    if (advFilters.divs.length && !advFilters.divs.includes(s.division)) return false;
+    if (advFilters.states.length && !advFilters.states.includes(extractState(s.location||s.state||''))) return false;
+    if (advFilters.verifiedOnly && !s.verified) return false;
+    const b = state.benchmarks.find(bm => bm.school_id === s.id);
+    if (advFilters.gpaMin && b?.min_gpa && b.min_gpa < parseFloat(advFilters.gpaMin)) return false;
+    if (advFilters.gpaMax && b?.min_gpa && b.min_gpa > parseFloat(advFilters.gpaMax)) return false;
+    if (advFilters.satMin && b?.min_sat && b.min_sat < parseInt(advFilters.satMin)) return false;
+    if (advFilters.satMax && b?.min_sat && b.min_sat > parseInt(advFilters.satMax)) return false;
+    if (advFilters.tuitMin && b?.tuition && b.tuition < parseInt(advFilters.tuitMin)) return false;
+    if (advFilters.tuitMax && b?.tuition && b.tuition > parseInt(advFilters.tuitMax)) return false;
     return true;
   });
+
+  const hasAdv = advFilters.divs.length||advFilters.states.length||advFilters.admRate||advFilters.gpaMin||advFilters.gpaMax||advFilters.satMin||advFilters.satMax||advFilters.tuitMin||advFilters.tuitMax||advFilters.verifiedOnly;
+  const btn = document.getElementById('adv-filter-btn');
+  if (btn) btn.classList.toggle('has-filters', !!hasAdv);
+
   document.getElementById('schools-count').textContent = `${rows.length} of ${state.schools.length} schools`;
   const tbody = document.getElementById('schools-body');
   const empty = document.getElementById('schools-empty');
@@ -613,6 +826,7 @@ function renderSchools() {
   tbody.innerHTML = rows.map(s => `
     <tr>
       <td style="font-weight:600">${s.name}</td>
+      <td style="font-size:.72rem;color:var(--cream-dim)">${s.location||'—'}</td>
       <td>${s.conference || '—'}</td>
       <td><span class="tag tag-${(s.division||'').toLowerCase()}">${s.division||'—'}</span></td>
       <td>${emailLink(s.head_coach_email)}</td>
@@ -626,6 +840,45 @@ function renderSchools() {
         <button class="btn-icon" onclick="openMatchModal('${s.id}')">match</button>
       </div></td>
     </tr>`).join('');
+}
+
+function extractState(loc) {
+  if (!loc) return '';
+  const m = loc.match(/,\s*([A-Z]{2})\s*$/);
+  if (m) return m[1];
+  return loc.trim().toUpperCase().slice(-2);
+}
+
+// ===== ADVANCED FILTER DRAWER =====
+function toggleAdvFilter() {
+  document.getElementById('adv-filter-drawer').classList.toggle('open');
+}
+function closeAdvFilter() {
+  document.getElementById('adv-filter-drawer').classList.remove('open');
+}
+function toggleAfdChip(btn, groupId) {
+  btn.classList.toggle('active');
+  applyAdvFilters();
+}
+function applyAdvFilters() {
+  const getActive = (id) => [...document.querySelectorAll(`#${id} .afd-chip.active`)].map(b => b.dataset.val);
+  advFilters.divs   = getActive('afd-div');
+  advFilters.states = getActive('afd-state');
+  advFilters.admRate = getActive('afd-adm')[0] || '';
+  advFilters.verifiedOnly = getActive('afd-ver').includes('yes');
+  advFilters.gpaMin  = document.getElementById('afd-gpa-min')?.value || '';
+  advFilters.gpaMax  = document.getElementById('afd-gpa-max')?.value || '';
+  advFilters.satMin  = document.getElementById('afd-sat-min')?.value || '';
+  advFilters.satMax  = document.getElementById('afd-sat-max')?.value || '';
+  advFilters.tuitMin = document.getElementById('afd-tuit-min')?.value || '';
+  advFilters.tuitMax = document.getElementById('afd-tuit-max')?.value || '';
+  renderSchools();
+}
+function resetAdvFilters() {
+  advFilters = { divs:[], states:[], admRate:'', gpaMin:'', gpaMax:'', satMin:'', satMax:'', tuitMin:'', tuitMax:'', verifiedOnly:false };
+  document.querySelectorAll('#adv-filter-drawer .afd-chip').forEach(c => c.classList.remove('active'));
+  ['afd-gpa-min','afd-gpa-max','afd-sat-min','afd-sat-max','afd-tuit-min','afd-tuit-max'].forEach(id => { const el = document.getElementById(id); if(el) el.value=''; });
+  renderSchools();
 }
 
 function emailLink(e) {
@@ -841,6 +1094,8 @@ let mmSelectedPlayer = null;
 let mmDivFilter = '';
 let mmConfFilter = '';
 let mmGradeFilter = '';
+let mmStateFilter = '';
+let mmTuitMax = '';
 
 function renderMatchmakerPlayers() {
   const list = document.getElementById('mm-player-list');
@@ -903,11 +1158,13 @@ function scorePlayer(player, school) {
   if (player.tier && tierMap[player.tier] === school.division) pts += 25;
   else if (player.tier && Math.abs(['D1','D2','D3'].indexOf(tierMap[player.tier]) - ['D1','D2','D3'].indexOf(school.division)) === 1) pts += 12;
 
-  // Scholarship availability (15pts)
+  // Scholarship + affordability (15pts)
   max += 15;
   if (sch && sch.full_rides_available > 0) pts += 15;
   else if (sch && sch.partial_available > 0) pts += 8;
   else if (school.division === 'D3') pts += 10; // D3 all academic aid
+  // Tuition affordability bonus (0-5pts extra signal, not in max)
+  // if tuition is below $30k it's a moderate boost captured in scoring context
 
   // Not yet in pipeline bonus (5pts)
   max += 5;
@@ -936,6 +1193,8 @@ function renderMatchResults() {
   if (mmDivFilter) scored = scored.filter(r => r.school.division === mmDivFilter);
   if (mmConfFilter) scored = scored.filter(r => (r.school.conference||'').toLowerCase().includes(mmConfFilter.toLowerCase()));
   if (mmGradeFilter) scored = scored.filter(r => r.grade === mmGradeFilter);
+  if (mmStateFilter) scored = scored.filter(r => extractState(r.school.location||'').includes(mmStateFilter.toUpperCase()));
+  if (mmTuitMax) scored = scored.filter(r => !r.bench?.tuition || r.bench.tuition <= parseInt(mmTuitMax));
 
   const top = scored.slice(0, 50);
   const aCount = scored.filter(r => r.grade === 'A').length;
@@ -969,7 +1228,9 @@ function renderMatchResults() {
         <option${mmDivFilter==='D2'?' selected':''}>D2</option>
         <option${mmDivFilter==='D3'?' selected':''}>D3</option>
       </select>
-      <input class="filter-input" placeholder="conference..." value="${mmConfFilter}" oninput="mmConfFilter=this.value;renderMatchResults()" style="min-width:130px">
+      <input class="filter-input" placeholder="conference..." value="${mmConfFilter}" oninput="mmConfFilter=this.value;renderMatchResults()" style="min-width:120px">
+      <input class="filter-input" placeholder="state (e.g. CA)" value="${mmStateFilter}" oninput="mmStateFilter=this.value;renderMatchResults()" style="max-width:100px">
+      <input class="filter-input" type="number" placeholder="max tuition $" value="${mmTuitMax}" oninput="mmTuitMax=this.value;renderMatchResults()" style="max-width:130px">
       <select class="filter-input" style="min-width:110px" onchange="mmGradeFilter=this.value;renderMatchResults()">
         <option value="">all grades</option>
         ${['A','B','C','D','F'].map(g=>`<option${mmGradeFilter===g?' selected':''}>${g}</option>`).join('')}
@@ -990,7 +1251,7 @@ function renderMatchResults() {
         <div class="grade-badge grade-${r.grade}">${r.grade}</div>
         <div class="mm-match-info">
           <div class="mm-match-name">${r.school.name}</div>
-          <div class="mm-match-sub"><span style="color:${dc};font-weight:700">${r.school.division}</span> · ${r.school.conference||'—'}${r.bench?.tuition ? ` · <span style="color:var(--cream-dim)">$${Number(r.bench.tuition).toLocaleString()}/yr</span>` : ''}${reasons.length?` · <span style="color:var(--cream-dim)">${reasons.join(' ')}</span>`:''}</div>
+          <div class="mm-match-sub"><span style="color:${dc};font-weight:700">${r.school.division}</span> · ${r.school.conference||'—'}${r.school.location ? ` · <span style="color:var(--cream-dim)">${r.school.location}</span>` : ''}${r.bench?.tuition ? ` · <span style="color:var(--yellow)">$${Number(r.bench.tuition).toLocaleString()}/yr</span>` : ''}${r.bench?.adm_rate ? ` · <span style="color:var(--cream-dim)">${r.bench.adm_rate}% adm</span>` : ''}${reasons.length?` · <span style="color:var(--cream-dim)">${reasons.join(' ')}</span>`:''}</div>
           <div class="mm-match-bar"><div class="mm-match-fill" style="width:${r.pct}%;background:${barColor}"></div></div>
         </div>
         <div class="mm-match-right">
@@ -1058,46 +1319,206 @@ function buildHexSVG(player, size) {
   </svg>`;
 }
 
-// ===== COLLEGE SCORECARD LIVE SYNC =====
+// ===== COLLEGE SCORECARD LIVE SYNC (matchmaker button) =====
 async function syncLiveSchoolData() {
   const apiKey = document.getElementById('mm-api-key').value.trim();
   if (!apiKey) { toast('enter your college scorecard api key first — get one free at api.data.gov', true); return; }
   const btn = document.querySelector('.btn-sync');
   btn.disabled = true; btn.textContent = '↻ syncing...';
+  const { synced, errors } = await scorecardBatchSync(state.schools.slice(0, 100), apiKey, () => {});
+  await loadBenchmarks(); await loadSchools();
+  btn.disabled = false; btn.textContent = '↻ sync live data';
+  toast(`synced ${synced} schools${errors ? ` · ${errors} failed` : ''}`);
+}
+
+// ===== SHARED SCORECARD BATCH =====
+async function scorecardBatchSync(schools, apiKey, onProgress) {
   let synced = 0, errors = 0;
-  const schoolsToSync = state.schools.slice(0, 100); // batch to avoid rate limits
-  for (const school of schoolsToSync) {
+  for (let i = 0; i < schools.length; i++) {
+    const school = schools[i];
+    onProgress(i, schools.length);
     try {
-      const name = encodeURIComponent(school.name);
-      const url = `https://api.data.gov/ed/collegescorecard/v1/schools?school.name=${name}&fields=school.name,latest.admissions.sat_scores.average.overall,latest.admissions.admission_rate.overall,latest.cost.tuition.in_state,latest.cost.tuition.out_of_state,latest.academics.program_available.bachelors&api_key=${apiKey}&per_page=1`;
+      const name = encodeURIComponent(school.name.replace(/university|college/gi,'').trim());
+      const url = `https://api.data.gov/ed/collegescorecard/v1/schools?school.name=${encodeURIComponent(school.name)}&fields=school.name,school.city,school.state,latest.admissions.sat_scores.average.overall,latest.admissions.admission_rate.overall,latest.cost.tuition.out_of_state,latest.admissions.act_scores.midpoint.cumulative&api_key=${apiKey}&per_page=1`;
       const res = await fetch(url);
+      if (!res.ok) { errors++; continue; }
       const json = await res.json();
       const r = json.results?.[0];
       if (!r) continue;
       const satAvg     = r['latest.admissions.sat_scores.average.overall'];
       const admRate    = r['latest.admissions.admission_rate.overall'];
       const tuitionOut = r['latest.cost.tuition.out_of_state'];
-      if (!satAvg && !admRate && !tuitionOut) continue;
-      // upsert into academic_benchmarks
-      const existing = state.benchmarks.find(b => b.school_id === school.id);
-      const payload = {
-        school_id: school.id,
-        ...(satAvg    ? { min_sat: Math.round(satAvg * 0.85) } : {}),
-        ...(tuitionOut? { tuition: tuitionOut } : {}),
-        ...(admRate   ? { notes: `${existing?.notes||''} [adm rate: ${(admRate*100).toFixed(1)}%]`.trim() } : {}),
-        updated_at: new Date().toISOString()
-      };
-      if (existing) {
-        await sb.from('academic_benchmarks').update(payload).eq('id', existing.id);
-      } else {
-        await sb.from('academic_benchmarks').insert([payload]);
+      const city       = r['school.city'];
+      const stateAbbr  = r['school.state'];
+      // Update school location if missing
+      if ((city && stateAbbr) && !school.location) {
+        await sb.from('schools').update({ location: `${city}, ${stateAbbr}` }).eq('id', school.id);
       }
-      synced++;
+      // Upsert benchmark
+      if (satAvg || tuitionOut || admRate) {
+        const existing = state.benchmarks.find(b => b.school_id === school.id);
+        const admNote = admRate ? `[adm rate: ${(admRate*100).toFixed(1)}%]` : '';
+        const payload = {
+          school_id: school.id,
+          ...(satAvg     ? { min_sat: Math.round(satAvg * 0.85), avg_sat: Math.round(satAvg) } : {}),
+          ...(tuitionOut ? { tuition: tuitionOut } : {}),
+          ...(admRate    ? { adm_rate: Math.round(admRate * 100) } : {}),
+          notes: `${(existing?.notes||'').replace(/\[adm rate:[^\]]*\]/g,'').trim()} ${admNote}`.trim(),
+          updated_at: new Date().toISOString()
+        };
+        if (existing) await sb.from('academic_benchmarks').update(payload).eq('id', existing.id);
+        else await sb.from('academic_benchmarks').insert([payload]);
+        synced++;
+      }
     } catch(e) { errors++; }
+    await new Promise(r => setTimeout(r, 120)); // rate limit
   }
-  await loadBenchmarks();
-  btn.disabled = false; btn.textContent = '↻ sync live data';
-  toast(`synced ${synced} schools${errors ? ` · ${errors} failed` : ''}`);
+  return { synced, errors };
+}
+
+// ===== CONTACT EMAIL DOMAIN VALIDATION =====
+async function validateEmailDomain(email) {
+  if (!email) return 'missing';
+  const domain = email.split('@')[1];
+  if (!domain) return 'invalid';
+  try {
+    const res = await fetch(`https://dns.google/resolve?name=${domain}&type=MX`);
+    const json = await res.json();
+    if (json.Status === 0 && json.Answer?.length) return 'ok';
+    // fallback: check A record
+    const res2 = await fetch(`https://dns.google/resolve?name=${domain}&type=A`);
+    const json2 = await res2.json();
+    return (json2.Status === 0 && json2.Answer?.length) ? 'warn' : 'invalid';
+  } catch { return 'warn'; }
+}
+
+// ===== VERIFIER OVERLAY =====
+let verifierResults = [];
+
+function openVerifier() {
+  document.getElementById('verifier-overlay').classList.add('show');
+  // pre-fill api key from matchmaker field if set
+  const mmKey = document.getElementById('mm-api-key')?.value;
+  if (mmKey) document.getElementById('ver-api-key').value = mmKey;
+  updateVerifierSummary();
+  renderVerifierTable();
+}
+function closeVerifier() {
+  document.getElementById('verifier-overlay').classList.remove('show');
+}
+
+function updateVerifierSummary() {
+  const total = state.schools.length;
+  const withAcademic = state.benchmarks.length;
+  const withTuition = state.benchmarks.filter(b => b.tuition).length;
+  const withStats = state.stats.length;
+  document.getElementById('vsum-total').textContent = total;
+  document.getElementById('vsum-academic').textContent = withAcademic;
+  document.getElementById('vsum-tuition').textContent = withTuition;
+  document.getElementById('vsum-stats').textContent = withStats;
+  if (verifierResults.length) {
+    const ok  = verifierResults.filter(r => r.contactStatus === 'ok').length;
+    const inv = verifierResults.filter(r => r.contactStatus === 'invalid').length;
+    document.getElementById('vsum-contacts').textContent = ok;
+    document.getElementById('vsum-invalid').textContent = inv;
+  } else {
+    document.getElementById('vsum-contacts').textContent = '—';
+    document.getElementById('vsum-invalid').textContent = '—';
+  }
+}
+
+async function runVerifier() {
+  const apiKey = document.getElementById('ver-api-key').value.trim();
+  const btn = document.getElementById('ver-sync-btn');
+  btn.disabled = true; btn.textContent = '⏳ running...';
+  const fill = document.getElementById('ver-progress-fill');
+  verifierResults = [];
+
+  const total = state.schools.length;
+  // Phase 1: validate all contact email domains (fast)
+  for (let i = 0; i < total; i++) {
+    const s = state.schools[i];
+    fill.style.width = `${Math.round((i / total) * 50)}%`;
+    const contactStatus = await validateEmailDomain(s.head_coach_email);
+    verifierResults.push({ school: s, contactStatus, synced: false, academic: null });
+    if (i % 10 === 0) renderVerifierTable();
+  }
+
+  // Phase 2: scorecard sync if API key provided
+  if (apiKey) {
+    const { synced, errors } = await scorecardBatchSync(state.schools, apiKey, (i, total) => {
+      fill.style.width = `${50 + Math.round((i / total) * 50)}%`;
+    });
+    await loadBenchmarks(); await loadSchools();
+    // mark synced in results
+    verifierResults.forEach(r => {
+      const b = state.benchmarks.find(bm => bm.school_id === r.school.id);
+      r.academic = b || null;
+    });
+    toast(`academic sync: ${synced} updated${errors ? ` · ${errors} errors` : ''}`);
+  } else {
+    // just pull local benchmark data
+    verifierResults.forEach(r => {
+      r.academic = state.benchmarks.find(bm => bm.school_id === r.school.id) || null;
+    });
+    fill.style.width = '100%';
+  }
+
+  updateVerifierSummary();
+  renderVerifierTable();
+  btn.disabled = false; btn.textContent = '▶ run verification';
+  // sync api key back to matchmaker
+  const mmKey = document.getElementById('mm-api-key');
+  if (mmKey && apiKey) mmKey.value = apiKey;
+}
+
+function renderVerifierTable() {
+  const divF    = document.getElementById('ver-filter-div')?.value || '';
+  const statusF = document.getElementById('ver-filter-status')?.value || '';
+  const tbody   = document.getElementById('ver-table-body');
+  const empty   = document.getElementById('ver-empty');
+
+  let rows = state.schools.map(s => {
+    const res = verifierResults.find(r => r.school.id === s.id);
+    const b   = state.benchmarks.find(bm => bm.school_id === s.id);
+    return { s, res, b };
+  });
+
+  if (divF) rows = rows.filter(r => r.s.division === divF);
+  if (statusF) {
+    rows = rows.filter(r => {
+      const cs = r.res?.contactStatus || 'pending';
+      if (statusF === 'ok') return cs === 'ok';
+      if (statusF === 'warn') return !r.b || cs === 'warn';
+      if (statusF === 'err') return cs === 'invalid';
+      return true;
+    });
+  }
+
+  if (!rows.length) { tbody.innerHTML = ''; empty.style.display = 'block'; return; }
+  empty.style.display = 'none';
+
+  const dc = d => d === 'D1' ? 'var(--d1)' : d === 'D2' ? 'var(--d2)' : 'var(--d3)';
+  const statusBadge = st => {
+    const map = { ok:['ok','✓ valid'], warn:['warn','~ domain ok'], invalid:['err','✗ invalid'], missing:['err','missing'], pending:['pending','not checked'] };
+    const [cls, label] = map[st] || ['pending', '—'];
+    return `<span class="vstatus-badge ${cls}">${label}</span>`;
+  };
+
+  tbody.innerHTML = rows.map(({ s, res, b }) => {
+    const cs = res?.contactStatus || 'pending';
+    return `<div class="vrow">
+      <div class="vcell" style="font-weight:600">${s.name}</div>
+      <div class="vcell"><span style="color:${dc(s.division)};font-weight:700;font-size:.7rem">${s.division||'—'}</span></div>
+      <div class="vcell">${b?.min_sat??'—'}</div>
+      <div class="vcell">${b?.min_gpa??'—'}</div>
+      <div class="vcell">${b?.avg_gpa_accepted??'—'}</div>
+      <div class="vcell">${b?.tuition ? '$'+Number(b.tuition).toLocaleString() : '—'}</div>
+      <div class="vcell">${b?.adm_rate ? b.adm_rate+'%' : '—'}</div>
+      <div class="vcell">${statusBadge(cs)}</div>
+      <div class="vcell" style="font-size:.65rem;color:var(--cream-dim)">${b?.updated_at ? new Date(b.updated_at).toLocaleDateString() : '—'}</div>
+    </div>`;
+  }).join('');
 }
 
 // ===== EVENTS =====
@@ -1184,8 +1605,8 @@ function getModalForm(type, id) {
       <div class="form-field"><label>division</label><select id="f-div"><option ${school?.division==='D1'?'selected':''}>D1</option><option ${school?.division==='D2'?'selected':''}>D2</option><option ${school?.division==='D3'?'selected':''}>D3</option><option ${school?.division==='NAIA'?'selected':''}>NAIA</option><option ${school?.division==='JUCO'?'selected':''}>JUCO</option></select></div>
     </div>
     <div class="form-row">
+      <div class="form-field"><label>location (city, state)</label><input id="f-location" placeholder="e.g. Durham, NC" value="${school?.location||''}"></div>
       <div class="form-field"><label>conference</label><input id="f-conf" value="${school?.conference||''}"></div>
-      <div class="form-field"><label>state</label><input id="f-state" value="${school?.state||''}"></div>
     </div>
     <div class="form-field"><label>head coach email</label><input id="f-hce" value="${school?.head_coach_email||''}"></div>
     <div class="form-field"><label>head coach phone</label><input id="f-hcp" value="${school?.head_coach_phone||''}"></div>
@@ -1277,7 +1698,7 @@ async function saveModal() {
   const g = (sel) => { const el = document.querySelector(sel); return el ? el.value.trim() : ''; };
 
   if (type === 'school') {
-    payload = { name:g('#f-name'), division:g('#f-div'), conference:g('#f-conf'), state:g('#f-state'), head_coach_email:g('#f-hce'), head_coach_phone:g('#f-hcp'), assistant_coach1_email:g('#f-ac1'), assistant_coach2_email:g('#f-ac2'), website:g('#f-web'), notes:g('#f-notes') };
+    payload = { name:g('#f-name'), division:g('#f-div'), conference:g('#f-conf'), location:g('#f-location'), head_coach_email:g('#f-hce'), head_coach_phone:g('#f-hcp'), assistant_coach1_email:g('#f-ac1'), assistant_coach2_email:g('#f-ac2'), website:g('#f-web'), notes:g('#f-notes') };
     if (!payload.name) { toast('school name required', true); return; }
   } else if (type === 'player') {
     payload = { full_name:g('#f-name'), nationality:g('#f-nat'), position:g('#f-pos')||null, date_of_birth:g('#f-dob')||null, gpa:parseFloat(g('#f-gpa'))||null, sat:parseInt(g('#f-sat'))||null, tier:g('#f-tier')||null, current_club:g('#f-club'), highlights_url:g('#f-url'), notes:g('#f-notes') };
