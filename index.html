@@ -1,0 +1,1286 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FTS — Internal Platform</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<link href="https://fonts.googleapis.com/css2?family=Jost:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root {
+  --black: #2B2926;
+  --black-light: #332f2b;
+  --cream: #F1EEE6;
+  --cream-dim: rgba(241,238,230,0.55);
+  --cream-faint: rgba(241,238,230,0.07);
+  --cream-border: rgba(241,238,230,0.1);
+  --d1: #8EB5A3;
+  --d2: #A09BC4;
+  --d3: #C4A08A;
+  --green: #6fa886;
+  --red: #c47a7a;
+  --yellow: #c4b07a;
+  --spring: cubic-bezier(0.16,1,0.3,1);
+  --fast: cubic-bezier(0.4,0,0.2,1);
+  --sidebar-w: 220px;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{font-family:'Jost',sans-serif;background:var(--black);color:var(--cream);-webkit-font-smoothing:antialiased;overflow-x:hidden;min-height:100vh;text-transform:lowercase}
+body::before{content:'';position:fixed;inset:0;background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 512 512' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");opacity:.035;pointer-events:none;z-index:9999}
+button,input,select,textarea{font-family:'Jost',sans-serif;text-transform:lowercase}
+input[type=number]{-moz-appearance:textfield}
+::-webkit-scrollbar{width:4px;height:4px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--cream-border);border-radius:2px}
+
+/* ===== LOGIN ===== */
+#login-page{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:var(--black);z-index:200;transition:opacity .5s var(--spring),transform .5s var(--spring)}
+#login-page.hidden{opacity:0;transform:translateY(-16px);pointer-events:none}
+.login-orb{position:absolute;border-radius:50%;filter:blur(80px);opacity:.06}
+.login-orb:nth-child(1){width:500px;height:500px;background:var(--cream);top:-180px;left:-80px}
+.login-orb:nth-child(2){width:350px;height:350px;background:var(--cream);bottom:-120px;right:-60px}
+.login-card{position:relative;width:400px;padding:52px 44px;border:1px solid var(--cream-border);border-radius:18px;background:rgba(43,41,38,.85);backdrop-filter:blur(24px);animation:loginIn .7s var(--spring) both}
+@keyframes loginIn{from{opacity:0;transform:translateY(28px)}to{opacity:1;transform:translateY(0)}}
+.login-logo{width:64px;margin-bottom:28px;opacity:.9}
+.login-title{font-size:1.4rem;font-weight:800;letter-spacing:-.03em;margin-bottom:4px}
+.login-sub{font-size:.75rem;font-weight:300;color:var(--cream-dim);margin-bottom:36px;letter-spacing:.02em}
+.field{margin-bottom:14px}
+.field label{display:block;font-size:.68rem;font-weight:500;letter-spacing:.08em;color:var(--cream-dim);margin-bottom:7px}
+.field input{width:100%;padding:13px 16px;background:var(--cream-faint);border:1px solid var(--cream-border);border-radius:9px;color:var(--cream);font-size:.85rem;outline:none;transition:border-color .2s var(--fast),background .2s var(--fast)}
+.field input:focus{border-color:rgba(241,238,230,.3);background:rgba(241,238,230,.05)}
+.field input::placeholder{color:rgba(241,238,230,.22)}
+.login-err{font-size:.73rem;color:var(--red);min-height:16px;margin-bottom:12px;opacity:0;transition:opacity .2s}
+.login-err.show{opacity:1}
+.btn-primary{width:100%;padding:15px;background:var(--cream);color:var(--black);border:none;border-radius:999px;font-size:.82rem;font-weight:700;letter-spacing:.04em;cursor:pointer;transition:background .2s,transform .15s,box-shadow .2s;box-shadow:0 4px 20px rgba(241,238,230,.1)}
+.btn-primary:hover{background:#fff;transform:translateY(-1px);box-shadow:0 6px 28px rgba(241,238,230,.15)}
+.btn-primary:active{transform:translateY(0)}
+.btn-primary:disabled{opacity:.5;cursor:not-allowed;transform:none}
+
+/* ===== APP SHELL ===== */
+#app{display:none;min-height:100vh}
+#app.show{display:flex}
+#sidebar{width:var(--sidebar-w);min-height:100vh;background:rgba(43,41,38,.95);border-right:1px solid var(--cream-border);display:flex;flex-direction:column;position:fixed;left:0;top:0;bottom:0;z-index:50;backdrop-filter:blur(12px)}
+.sb-logo{padding:28px 24px 20px;border-bottom:1px solid var(--cream-border)}
+.sb-logo img{width:52px;opacity:.9}
+.sb-user{padding:12px 24px;border-bottom:1px solid var(--cream-border)}
+.sb-user-name{font-size:.72rem;font-weight:600;letter-spacing:.04em;color:var(--cream)}
+.sb-user-role{font-size:.65rem;color:var(--cream-dim);margin-top:1px}
+nav{flex:1;padding:16px 12px;display:flex;flex-direction:column;gap:2px}
+.nav-section{font-size:.6rem;font-weight:600;letter-spacing:.1em;color:rgba(241,238,230,.3);padding:10px 12px 4px}
+.nav-item{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:9px;cursor:pointer;font-size:.78rem;font-weight:500;color:var(--cream-dim);transition:background .15s,color .15s;border:none;background:none;text-align:left;width:100%}
+.nav-item .nav-icon{width:16px;height:16px;opacity:.6;flex-shrink:0}
+.nav-item:hover{background:var(--cream-faint);color:var(--cream)}
+.nav-item.active{background:rgba(241,238,230,.1);color:var(--cream)}
+.nav-item.active .nav-icon{opacity:1}
+.sb-bottom{padding:16px 12px;border-top:1px solid var(--cream-border)}
+.btn-logout{width:100%;padding:9px 12px;background:none;border:1px solid var(--cream-border);border-radius:8px;color:var(--cream-dim);font-size:.73rem;cursor:pointer;transition:all .15s}
+.btn-logout:hover{border-color:var(--red);color:var(--red)}
+
+/* ===== MAIN CONTENT ===== */
+#main{margin-left:var(--sidebar-w);flex:1;min-height:100vh;padding:0}
+.tab-panel{display:none;flex-direction:column;min-height:100vh}
+.tab-panel.active{display:flex}
+.panel-header{padding:32px 36px 24px;border-bottom:1px solid var(--cream-border);display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap}
+.panel-title{font-size:1.3rem;font-weight:800;letter-spacing:-.02em}
+.panel-subtitle{font-size:.73rem;color:var(--cream-dim);margin-top:2px}
+.panel-actions{display:flex;align-items:center;gap:10px}
+.btn-add{padding:10px 18px;background:var(--cream);color:var(--black);border:none;border-radius:999px;font-size:.75rem;font-weight:700;letter-spacing:.04em;cursor:pointer;transition:background .2s,transform .15s}
+.btn-add:hover{background:#fff;transform:translateY(-1px)}
+.btn-seed{padding:9px 16px;background:var(--cream-faint);color:var(--cream);border:1px solid var(--cream-border);border-radius:999px;font-size:.73rem;font-weight:600;cursor:pointer;transition:all .15s}
+.btn-seed:hover{background:rgba(241,238,230,.12)}
+
+/* ===== FILTERS ===== */
+.filters{padding:16px 36px;border-bottom:1px solid var(--cream-border);display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.filter-input{padding:9px 14px;background:var(--cream-faint);border:1px solid var(--cream-border);border-radius:8px;color:var(--cream);font-size:.78rem;outline:none;min-width:160px;transition:border-color .2s}
+.filter-input:focus{border-color:rgba(241,238,230,.3)}
+.filter-input::placeholder{color:rgba(241,238,230,.25)}
+select.filter-input option{background:#2B2926;color:var(--cream)}
+
+/* ===== TABLE ===== */
+.table-wrap{flex:1;overflow-x:auto;padding:0 36px 36px}
+table{width:100%;border-collapse:collapse;margin-top:20px;min-width:600px}
+thead th{font-size:.65rem;font-weight:600;letter-spacing:.08em;color:var(--cream-dim);text-align:left;padding:10px 12px;border-bottom:1px solid var(--cream-border)}
+tbody tr{border-bottom:1px solid rgba(241,238,230,.05);transition:background .12s}
+tbody tr:hover{background:var(--cream-faint)}
+tbody td{padding:12px 12px;font-size:.78rem;color:var(--cream);vertical-align:middle}
+.tag{display:inline-block;padding:3px 9px;border-radius:999px;font-size:.63rem;font-weight:600;letter-spacing:.04em}
+.tag-d1{background:rgba(142,181,163,.15);color:var(--d1)}
+.tag-d2{background:rgba(160,155,196,.15);color:var(--d2)}
+.tag-d3{background:rgba(196,160,138,.15);color:var(--d3)}
+.tag-high{background:rgba(111,168,134,.15);color:var(--green)}
+.tag-mid{background:rgba(196,176,122,.15);color:var(--yellow)}
+.tag-low{background:rgba(196,122,122,.15);color:var(--red)}
+.status-dot{display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:6px}
+.verified-yes{color:var(--green)}
+.verified-no{color:rgba(241,238,230,.25)}
+.row-actions{display:flex;gap:6px}
+.btn-icon{background:none;border:1px solid var(--cream-border);border-radius:6px;color:var(--cream-dim);cursor:pointer;font-size:.7rem;padding:5px 9px;transition:all .15s}
+.btn-icon:hover{border-color:var(--cream);color:var(--cream)}
+.btn-icon.del:hover{border-color:var(--red);color:var(--red)}
+.empty-state{padding:60px 36px;text-align:center;color:var(--cream-dim);font-size:.82rem}
+.loading{padding:48px;text-align:center;color:var(--cream-dim);font-size:.8rem}
+
+/* ===== MODAL ===== */
+#modal-overlay{position:fixed;inset:0;background:rgba(43,41,38,.85);backdrop-filter:blur(6px);z-index:150;display:none;align-items:center;justify-content:center;padding:20px}
+#modal-overlay.show{display:flex}
+.modal{background:var(--black-light);border:1px solid var(--cream-border);border-radius:16px;width:100%;max-width:540px;max-height:90vh;overflow-y:auto;animation:modalIn .35s var(--spring) both}
+@keyframes modalIn{from{opacity:0;transform:scale(.96) translateY(12px)}to{opacity:1;transform:scale(1) translateY(0)}}
+.modal-header{padding:28px 28px 0;display:flex;align-items:center;justify-content:space-between}
+.modal-title{font-size:1rem;font-weight:700;letter-spacing:-.01em}
+.modal-close{background:none;border:none;color:var(--cream-dim);font-size:1.2rem;cursor:pointer;padding:4px;line-height:1}
+.modal-close:hover{color:var(--cream)}
+.modal-body{padding:24px 28px 28px;display:flex;flex-direction:column;gap:14px}
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.form-field label{display:block;font-size:.67rem;font-weight:600;letter-spacing:.07em;color:var(--cream-dim);margin-bottom:6px}
+.form-field input,.form-field select,.form-field textarea{width:100%;padding:11px 14px;background:var(--cream-faint);border:1px solid var(--cream-border);border-radius:8px;color:var(--cream);font-size:.8rem;outline:none;transition:border-color .2s;resize:vertical}
+.form-field input:focus,.form-field select:focus,.form-field textarea:focus{border-color:rgba(241,238,230,.3)}
+.form-field select option{background:#2B2926}
+.modal-footer{padding:0 28px 28px;display:flex;gap:10px;justify-content:flex-end}
+.btn-cancel{padding:10px 18px;background:none;border:1px solid var(--cream-border);border-radius:999px;color:var(--cream-dim);font-size:.75rem;cursor:pointer;transition:all .15s}
+.btn-cancel:hover{border-color:var(--cream);color:var(--cream)}
+.btn-save{padding:10px 22px;background:var(--cream);color:var(--black);border:none;border-radius:999px;font-size:.75rem;font-weight:700;cursor:pointer;transition:all .15s}
+.btn-save:hover{background:#fff}
+
+/* ===== PIPELINE SPECIFIC ===== */
+.pipeline-player-select{padding:16px 36px;border-bottom:1px solid var(--cream-border)}
+.status-badge{padding:3px 10px;border-radius:999px;font-size:.62rem;font-weight:600;letter-spacing:.03em}
+.status-not_contacted{background:rgba(241,238,230,.06);color:var(--cream-dim)}
+.status-contacted{background:rgba(196,176,122,.15);color:var(--yellow)}
+.status-responded{background:rgba(142,181,163,.12);color:var(--d1)}
+.status-visit_scheduled{background:rgba(160,155,196,.15);color:var(--d2)}
+.status-offer{background:rgba(111,168,134,.18);color:var(--green)}
+.status-declined{background:rgba(196,122,122,.15);color:var(--red)}
+.status-signed{background:rgba(111,168,134,.25);color:var(--green)}
+
+/* ===== STATS COLORS ===== */
+.stat-num{font-size:1.4rem;font-weight:800;letter-spacing:-.02em}
+.win-n{color:var(--green)}
+.loss-n{color:var(--red)}
+.draw-n{color:var(--cream-dim)}
+
+/* ===== CALENDAR ===== */
+.events-grid{padding:24px 36px;display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:14px}
+.event-card{padding:18px 20px;border:1px solid var(--cream-border);border-radius:12px;background:var(--cream-faint);transition:background .15s}
+.event-card:hover{background:rgba(241,238,230,.09)}
+.event-date{font-size:.68rem;font-weight:600;letter-spacing:.06em;color:var(--cream-dim);margin-bottom:6px}
+.event-title{font-size:.88rem;font-weight:700;margin-bottom:4px}
+.event-loc{font-size:.72rem;color:var(--cream-dim)}
+.event-type-badge{display:inline-block;padding:2px 8px;border-radius:999px;font-size:.6rem;font-weight:600;margin-bottom:8px}
+.etype-showcase{background:rgba(142,181,163,.15);color:var(--d1)}
+.etype-tournament{background:rgba(160,155,196,.15);color:var(--d2)}
+.etype-deadline{background:rgba(196,122,122,.15);color:var(--red)}
+.etype-visit{background:rgba(196,176,122,.15);color:var(--yellow)}
+.etype-other{background:rgba(241,238,230,.07);color:var(--cream-dim)}
+
+/* ===== MATCHING ===== */
+.match-card{padding:14px 16px;border:1px solid var(--cream-border);border-radius:10px;display:flex;align-items:center;gap:14px;margin-bottom:8px;background:var(--cream-faint)}
+.match-rank{font-size:.65rem;font-weight:700;color:var(--cream-dim);width:22px;flex-shrink:0}
+.match-info{flex:1}
+.match-name{font-size:.83rem;font-weight:600}
+.match-conf{font-size:.68rem;color:var(--cream-dim)}
+.match-score{font-size:.72rem;font-weight:700;color:var(--green)}
+.match-bar{height:3px;border-radius:999px;background:rgba(241,238,230,.08);margin-top:6px;overflow:hidden}
+.match-fill{height:100%;background:var(--d1);border-radius:999px}
+
+/* ===== TOAST ===== */
+#toast{position:fixed;bottom:24px;right:24px;z-index:500;display:flex;flex-direction:column;gap:8px}
+.toast-item{padding:12px 18px;background:var(--black-light);border:1px solid var(--cream-border);border-radius:10px;font-size:.76rem;color:var(--cream);animation:toastIn .3s var(--spring) both}
+.toast-item.err{border-color:var(--red);color:var(--red)}
+@keyframes toastIn{from{opacity:0;transform:translateX(20px)}to{opacity:1;transform:translateX(0)}}
+</style>
+</head>
+<body>
+
+<!-- LOGIN -->
+<div id="login-page">
+  <div class="login-orb"></div>
+  <div class="login-orb"></div>
+  <div class="login-card">
+    <img class="login-logo" src="brand assets/final_fts_logo_coconut_milk.png" alt="FTS" onerror="this.style.display='none'">
+    <div class="login-title">fts platform</div>
+    <div class="login-sub">internal operations — authorized access only</div>
+    <div class="field"><label>email</label><input type="email" id="login-email" placeholder="you@ftspathway.com" autocomplete="email"></div>
+    <div class="field"><label>password</label><input type="password" id="login-pass" placeholder="••••••••" autocomplete="current-password"></div>
+    <div class="login-err" id="login-err"></div>
+    <button class="btn-primary" id="login-btn" onclick="doLogin()">sign in</button>
+  </div>
+</div>
+
+<!-- APP -->
+<div id="app">
+  <aside id="sidebar">
+    <div class="sb-logo"><img src="brand assets/final_fts_logo_coconut_milk.png" alt="FTS" style="width:52px;opacity:.9" onerror="this.style.display='none'"></div>
+    <div class="sb-user"><div class="sb-user-name" id="sb-name">—</div><div class="sb-user-role">fts agency</div></div>
+    <nav>
+      <div class="nav-section">database</div>
+      <button class="nav-item active" onclick="switchTab('schools')" id="nav-schools">
+        <svg class="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="1" y="3" width="14" height="10" rx="1.5"/><path d="M5 3V13M1 7h14"/></svg>schools
+      </button>
+      <button class="nav-item" onclick="switchTab('players')" id="nav-players">
+        <svg class="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="5" r="3"/><path d="M2 14c0-3.314 2.686-5 6-5s6 1.686 6 5"/></svg>players
+      </button>
+      <div class="nav-section">recruiting</div>
+      <button class="nav-item" onclick="switchTab('pipeline')" id="nav-pipeline">
+        <svg class="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 4h12M4 8h8M6 12h4"/></svg>pipeline
+      </button>
+      <button class="nav-item" onclick="switchTab('scholarships')" id="nav-scholarships">
+        <svg class="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="6"/><path d="M8 5v3l2 1"/></svg>scholarships
+      </button>
+      <div class="nav-section">analytics</div>
+      <button class="nav-item" onclick="switchTab('stats')" id="nav-stats">
+        <svg class="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="1" y="8" width="3" height="6" rx="1"/><rect x="6" y="5" width="3" height="9" rx="1"/><rect x="11" y="2" width="3" height="12" rx="1"/></svg>team stats
+      </button>
+      <button class="nav-item" onclick="switchTab('benchmarks')" id="nav-benchmarks">
+        <svg class="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 12L6 8l3 3 5-6"/></svg>academics
+      </button>
+      <button class="nav-item" onclick="switchTab('events')" id="nav-events">
+        <svg class="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="1" y="3" width="14" height="11" rx="1.5"/><path d="M1 7h14M5 1v4M11 1v4"/></svg>events
+      </button>
+    </nav>
+    <div class="sb-bottom"><button class="btn-logout" onclick="doLogout()">sign out</button></div>
+  </aside>
+
+  <main id="main">
+
+    <!-- SCHOOLS TAB -->
+    <div class="tab-panel active" id="tab-schools">
+      <div class="panel-header">
+        <div><div class="panel-title">schools database</div><div class="panel-subtitle" id="schools-count">loading...</div></div>
+        <div class="panel-actions">
+          <button class="btn-seed" onclick="seedSchools()">seed d1 schools</button>
+          <button class="btn-add" onclick="openModal('school')">+ add school</button>
+        </div>
+      </div>
+      <div class="filters">
+        <input class="filter-input" type="text" placeholder="search school..." id="sf-search" oninput="renderSchools()">
+        <select class="filter-input" id="sf-conf" onchange="renderSchools()">
+          <option value="">all conferences</option>
+          <option>ACC</option><option>AAC</option><option>AEC</option><option>A10</option>
+          <option>ASUN</option><option>Big East</option><option>Big South</option><option>Big Ten</option>
+          <option>Big West</option><option>CAA</option><option>Horizon</option><option>Ivy</option>
+          <option>MAAC</option><option>MAC</option><option>MVC</option><option>NEC</option>
+          <option>PAC-12</option><option>Patriot</option><option>SOCON</option><option>Sun Belt</option>
+          <option>Summit</option><option>WAC</option><option>WCC</option>
+        </select>
+        <select class="filter-input" id="sf-div" onchange="renderSchools()">
+          <option value="">all divisions</option>
+          <option>D1</option><option>D2</option><option>D3</option><option>NAIA</option><option>JUCO</option>
+        </select>
+        <select class="filter-input" id="sf-ver" onchange="renderSchools()">
+          <option value="">all</option>
+          <option value="true">verified</option>
+          <option value="false">unverified</option>
+        </select>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr>
+            <th>school</th><th>conference</th><th>division</th>
+            <th>head coach email</th><th>asst 1</th><th>asst 2</th>
+            <th>phone</th><th>verified</th><th></th>
+          </tr></thead>
+          <tbody id="schools-body"></tbody>
+        </table>
+        <div class="empty-state" id="schools-empty" style="display:none">no schools found. click "seed d1 schools" to import all 216 programs.</div>
+      </div>
+    </div>
+
+    <!-- PLAYERS TAB -->
+    <div class="tab-panel" id="tab-players">
+      <div class="panel-header">
+        <div><div class="panel-title">players</div><div class="panel-subtitle" id="players-count">—</div></div>
+        <div class="panel-actions">
+          <button class="btn-add" onclick="openModal('player')">+ add player</button>
+        </div>
+      </div>
+      <div class="filters">
+        <input class="filter-input" type="text" placeholder="search player..." id="pf-search" oninput="renderPlayers()">
+        <select class="filter-input" id="pf-tier" onchange="renderPlayers()">
+          <option value="">all tiers</option>
+          <option>high</option><option>mid</option><option>low</option>
+        </select>
+        <select class="filter-input" id="pf-pos" onchange="renderPlayers()">
+          <option value="">all positions</option>
+          <option>GK</option><option>CB</option><option>LB</option><option>RB</option>
+          <option>CDM</option><option>CM</option><option>CAM</option><option>LW</option><option>RW</option><option>ST</option>
+        </select>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr>
+            <th>name</th><th>nationality</th><th>position</th><th>dob</th>
+            <th>gpa</th><th>sat</th><th>tier</th><th>club</th><th></th>
+          </tr></thead>
+          <tbody id="players-body"></tbody>
+        </table>
+        <div class="empty-state" id="players-empty" style="display:none">no players yet. add your first player above.</div>
+      </div>
+    </div>
+
+    <!-- PIPELINE TAB -->
+    <div class="tab-panel" id="tab-pipeline">
+      <div class="panel-header">
+        <div><div class="panel-title">recruiting pipeline</div><div class="panel-subtitle">track contact status per player / school</div></div>
+        <div class="panel-actions">
+          <button class="btn-add" onclick="openModal('pipeline')">+ add entry</button>
+        </div>
+      </div>
+      <div class="filters">
+        <select class="filter-input" id="pipf-player" onchange="renderPipeline()">
+          <option value="">all players</option>
+        </select>
+        <select class="filter-input" id="pipf-status" onchange="renderPipeline()">
+          <option value="">all statuses</option>
+          <option>not_contacted</option><option>contacted</option><option>responded</option>
+          <option>visit_scheduled</option><option>offer</option><option>declined</option><option>signed</option>
+        </select>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr>
+            <th>player</th><th>school</th><th>status</th><th>last contact</th><th>next step</th><th>notes</th><th></th>
+          </tr></thead>
+          <tbody id="pipeline-body"></tbody>
+        </table>
+        <div class="empty-state" id="pipeline-empty" style="display:none">no pipeline entries yet.</div>
+      </div>
+    </div>
+
+    <!-- STATS TAB -->
+    <div class="tab-panel" id="tab-stats">
+      <div class="panel-header">
+        <div><div class="panel-title">team statistics</div><div class="panel-subtitle">season records & rankings</div></div>
+        <div class="panel-actions">
+          <button class="btn-add" onclick="openModal('stats')">+ add record</button>
+        </div>
+      </div>
+      <div class="filters">
+        <input class="filter-input" type="text" placeholder="search school..." id="stf-search" oninput="renderStats()">
+        <input class="filter-input" type="text" placeholder="season (e.g. 2024)" id="stf-season" oninput="renderStats()">
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr>
+            <th>school</th><th>season</th><th>w</th><th>l</th><th>d</th>
+            <th>conf rank</th><th>nat rank</th><th></th>
+          </tr></thead>
+          <tbody id="stats-body"></tbody>
+        </table>
+        <div class="empty-state" id="stats-empty" style="display:none">no stats logged yet.</div>
+      </div>
+    </div>
+
+    <!-- BENCHMARKS TAB -->
+    <div class="tab-panel" id="tab-benchmarks">
+      <div class="panel-header">
+        <div><div class="panel-title">academic benchmarks</div><div class="panel-subtitle">gpa / sat / toefl thresholds per school</div></div>
+        <div class="panel-actions">
+          <button class="btn-add" onclick="openModal('benchmark')">+ add benchmark</button>
+        </div>
+      </div>
+      <div class="filters">
+        <input class="filter-input" type="text" placeholder="search school..." id="bf-search" oninput="renderBenchmarks()">
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr>
+            <th>school</th><th>min gpa</th><th>min sat</th><th>min toefl</th><th>avg gpa accepted</th><th>notes</th><th></th>
+          </tr></thead>
+          <tbody id="benchmarks-body"></tbody>
+        </table>
+        <div class="empty-state" id="benchmarks-empty" style="display:none">no benchmarks logged yet.</div>
+      </div>
+    </div>
+
+    <!-- SCHOLARSHIPS TAB -->
+    <div class="tab-panel" id="tab-scholarships">
+      <div class="panel-header">
+        <div><div class="panel-title">scholarship opportunities</div><div class="panel-subtitle">financial aid availability per school</div></div>
+        <div class="panel-actions">
+          <button class="btn-add" onclick="openModal('scholarship')">+ add entry</button>
+        </div>
+      </div>
+      <div class="filters">
+        <input class="filter-input" type="text" placeholder="search school..." id="schf-search" oninput="renderScholarships()">
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr>
+            <th>school</th><th>full rides</th><th>partial</th><th>details</th><th>last verified</th><th></th>
+          </tr></thead>
+          <tbody id="scholarships-body"></tbody>
+        </table>
+        <div class="empty-state" id="scholarships-empty" style="display:none">no scholarship data yet.</div>
+      </div>
+    </div>
+
+    <!-- EVENTS TAB -->
+    <div class="tab-panel" id="tab-events">
+      <div class="panel-header">
+        <div><div class="panel-title">events calendar</div><div class="panel-subtitle">showcases, deadlines & tournaments</div></div>
+        <div class="panel-actions">
+          <button class="btn-add" onclick="openModal('event')">+ add event</button>
+        </div>
+      </div>
+      <div class="filters">
+        <input class="filter-input" type="text" placeholder="search events..." id="ef-search" oninput="renderEvents()">
+        <select class="filter-input" id="ef-type" onchange="renderEvents()">
+          <option value="">all types</option>
+          <option>showcase</option><option>tournament</option><option>deadline</option><option>visit</option><option>other</option>
+        </select>
+      </div>
+      <div class="events-grid" id="events-grid"></div>
+      <div class="empty-state" id="events-empty" style="display:none">no events logged yet.</div>
+    </div>
+
+  </main>
+</div>
+
+<!-- MODAL -->
+<div id="modal-overlay" onclick="closeModalOnBg(event)">
+  <div class="modal" id="modal">
+    <div class="modal-header">
+      <div class="modal-title" id="modal-title">—</div>
+      <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
+    <div class="modal-body" id="modal-body"></div>
+    <div class="modal-footer">
+      <button class="btn-cancel" onclick="closeModal()">cancel</button>
+      <button class="btn-save" id="modal-save" onclick="saveModal()">save</button>
+    </div>
+  </div>
+</div>
+
+<!-- TOAST -->
+<div id="toast"></div>
+
+<script>
+// ===== SUPABASE =====
+const { createClient } = supabase;
+const sb = createClient(
+  'https://rsdzryewgjbrxetgialm.supabase.co',
+  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJzZHpyeWV3Z2picnhldGdpYWxtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzUwNTA3NzYsImV4cCI6MjA5MDYyNjc3Nn0.Z9b4y-xoYKyYhIMvAkusotHrByFTLXLj-IzlGYYZaG0'
+);
+
+// ===== STATE =====
+let state = { user: null, tab: 'schools', schools: [], players: [], pipeline: [], stats: [], benchmarks: [], scholarships: [], events: [], editing: null, modalType: null };
+
+// ===== AUTH =====
+async function doLogin() {
+  const email = document.getElementById('login-email').value.trim();
+  const pass  = document.getElementById('login-pass').value;
+  const err   = document.getElementById('login-err');
+  const btn   = document.getElementById('login-btn');
+  err.classList.remove('show');
+  btn.disabled = true; btn.textContent = 'signing in...';
+  const { data, error } = await sb.auth.signInWithPassword({ email, password: pass });
+  btn.disabled = false; btn.textContent = 'sign in';
+  if (error) { err.textContent = error.message; err.classList.add('show'); return; }
+  startApp(data.user);
+}
+
+document.getElementById('login-pass').addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
+document.getElementById('login-email').addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
+
+async function doLogout() {
+  await sb.auth.signOut();
+  document.getElementById('app').classList.remove('show');
+  document.getElementById('login-page').classList.remove('hidden');
+}
+
+function startApp(user) {
+  state.user = user;
+  document.getElementById('login-page').classList.add('hidden');
+  document.getElementById('app').classList.add('show');
+  const name = user.email.split('@')[0];
+  document.getElementById('sb-name').textContent = name;
+  loadAll();
+}
+
+// ===== INIT =====
+sb.auth.getSession().then(({ data }) => {
+  if (data.session?.user) startApp(data.session.user);
+});
+
+async function loadAll() {
+  await Promise.all([loadSchools(), loadPlayers()]);
+  loadPipeline(); loadStats(); loadBenchmarks(); loadScholarships(); loadEvents();
+}
+
+// ===== TAB SWITCH =====
+function switchTab(tab) {
+  state.tab = tab;
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.getElementById('tab-' + tab).classList.add('active');
+  document.getElementById('nav-' + tab).classList.add('active');
+}
+
+// ===== SCHOOLS =====
+async function loadSchools() {
+  const { data } = await sb.from('schools').select('*').order('name');
+  state.schools = data || [];
+  renderSchools();
+}
+
+function renderSchools() {
+  const search = document.getElementById('sf-search').value.toLowerCase();
+  const conf   = document.getElementById('sf-conf').value;
+  const div    = document.getElementById('sf-div').value;
+  const ver    = document.getElementById('sf-ver').value;
+  let rows = state.schools.filter(s => {
+    if (search && !s.name.toLowerCase().includes(search)) return false;
+    if (conf && s.conference !== conf) return false;
+    if (div && s.division !== div) return false;
+    if (ver === 'true' && !s.verified) return false;
+    if (ver === 'false' && s.verified) return false;
+    return true;
+  });
+  document.getElementById('schools-count').textContent = `${rows.length} of ${state.schools.length} schools`;
+  const tbody = document.getElementById('schools-body');
+  const empty = document.getElementById('schools-empty');
+  if (!rows.length) { tbody.innerHTML = ''; empty.style.display = 'block'; return; }
+  empty.style.display = 'none';
+  tbody.innerHTML = rows.map(s => `
+    <tr>
+      <td style="font-weight:600">${s.name}</td>
+      <td>${s.conference || '—'}</td>
+      <td><span class="tag tag-${(s.division||'').toLowerCase()}">${s.division||'—'}</span></td>
+      <td>${emailLink(s.head_coach_email)}</td>
+      <td>${emailLink(s.assistant_coach1_email)}</td>
+      <td>${emailLink(s.assistant_coach2_email)}</td>
+      <td style="font-size:.72rem;color:var(--cream-dim)">${s.head_coach_phone||'—'}</td>
+      <td><span class="${s.verified?'verified-yes':'verified-no'}" style="cursor:pointer;font-size:.8rem" onclick="toggleVerified('${s.id}',${s.verified})">${s.verified?'✓ verified':'○ unverified'}</span></td>
+      <td><div class="row-actions">
+        <button class="btn-icon" onclick="openModal('school','${s.id}')">edit</button>
+        <button class="btn-icon del" onclick="deleteRow('schools','${s.id}',loadSchools)">del</button>
+        <button class="btn-icon" onclick="openMatchModal('${s.id}')">match</button>
+      </div></td>
+    </tr>`).join('');
+}
+
+function emailLink(e) {
+  if (!e) return '<span style="color:var(--cream-dim)">—</span>';
+  return `<a href="mailto:${e}" style="color:var(--cream-dim);font-size:.72rem;text-decoration:none" onmouseover="this.style.color='var(--cream)'" onmouseout="this.style.color='var(--cream-dim)'">${e}</a>`;
+}
+
+async function toggleVerified(id, current) {
+  await sb.from('schools').update({ verified: !current }).eq('id', id);
+  await loadSchools();
+}
+
+// ===== PLAYERS =====
+async function loadPlayers() {
+  const { data } = await sb.from('players').select('*').order('full_name');
+  state.players = data || [];
+  renderPlayers();
+  populatePipelinePlayerSelect();
+}
+
+function renderPlayers() {
+  const search = document.getElementById('pf-search').value.toLowerCase();
+  const tier   = document.getElementById('pf-tier').value;
+  const pos    = document.getElementById('pf-pos').value;
+  let rows = state.players.filter(p => {
+    if (search && !p.full_name.toLowerCase().includes(search)) return false;
+    if (tier && p.tier !== tier) return false;
+    if (pos && p.position !== pos) return false;
+    return true;
+  });
+  document.getElementById('players-count').textContent = `${rows.length} player${rows.length!==1?'s':''}`;
+  const tbody = document.getElementById('players-body');
+  const empty = document.getElementById('players-empty');
+  if (!rows.length) { tbody.innerHTML = ''; empty.style.display = 'block'; return; }
+  empty.style.display = 'none';
+  tbody.innerHTML = rows.map(p => `
+    <tr>
+      <td style="font-weight:600">${p.full_name}</td>
+      <td>${p.nationality||'—'}</td>
+      <td>${p.position||'—'}</td>
+      <td style="font-size:.72rem">${p.date_of_birth||'—'}</td>
+      <td>${p.gpa||'—'}</td>
+      <td>${p.sat||'—'}</td>
+      <td><span class="tag tag-${p.tier||'mid'}">${p.tier||'—'}</span></td>
+      <td style="font-size:.72rem;color:var(--cream-dim)">${p.current_club||'—'}</td>
+      <td><div class="row-actions">
+        <button class="btn-icon" onclick="openModal('player','${p.id}')">edit</button>
+        <button class="btn-icon del" onclick="deleteRow('players','${p.id}',loadPlayers)">del</button>
+        <button class="btn-icon" onclick="openPlayerMatchModal('${p.id}')">match</button>
+      </div></td>
+    </tr>`).join('');
+}
+
+// ===== PIPELINE =====
+async function loadPipeline() {
+  const { data } = await sb.from('pipeline').select('*, players(full_name), schools(name)').order('created_at', { ascending: false });
+  state.pipeline = data || [];
+  renderPipeline();
+}
+
+function populatePipelinePlayerSelect() {
+  const sel = document.getElementById('pipf-player');
+  sel.innerHTML = '<option value="">all players</option>' + state.players.map(p => `<option value="${p.id}">${p.full_name}</option>`).join('');
+}
+
+function renderPipeline() {
+  const pid    = document.getElementById('pipf-player').value;
+  const status = document.getElementById('pipf-status').value;
+  let rows = state.pipeline.filter(r => {
+    if (pid && r.player_id !== pid) return false;
+    if (status && r.status !== status) return false;
+    return true;
+  });
+  const tbody = document.getElementById('pipeline-body');
+  const empty = document.getElementById('pipeline-empty');
+  if (!rows.length) { tbody.innerHTML = ''; empty.style.display = 'block'; return; }
+  empty.style.display = 'none';
+  tbody.innerHTML = rows.map(r => `
+    <tr>
+      <td style="font-weight:600">${r.players?.full_name||'—'}</td>
+      <td>${r.schools?.name||'—'}</td>
+      <td><span class="status-badge status-${r.status}">${(r.status||'').replace('_',' ')}</span></td>
+      <td style="font-size:.72rem">${r.last_contact_date||'—'}</td>
+      <td style="font-size:.72rem;color:var(--cream-dim)">${r.next_step||'—'}</td>
+      <td style="font-size:.72rem;color:var(--cream-dim);max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${r.notes||'—'}</td>
+      <td><div class="row-actions">
+        <button class="btn-icon" onclick="openModal('pipeline','${r.id}')">edit</button>
+        <button class="btn-icon del" onclick="deleteRow('pipeline','${r.id}',loadPipeline)">del</button>
+      </div></td>
+    </tr>`).join('');
+}
+
+// ===== STATS =====
+async function loadStats() {
+  const { data } = await sb.from('team_stats').select('*, schools(name)').order('updated_at', { ascending: false });
+  state.stats = data || [];
+  renderStats();
+}
+
+function renderStats() {
+  const search = document.getElementById('stf-search').value.toLowerCase();
+  const season = document.getElementById('stf-season').value;
+  let rows = state.stats.filter(r => {
+    if (search && !(r.schools?.name||'').toLowerCase().includes(search)) return false;
+    if (season && !(r.season||'').includes(season)) return false;
+    return true;
+  });
+  const tbody = document.getElementById('stats-body');
+  const empty = document.getElementById('stats-empty');
+  if (!rows.length) { tbody.innerHTML = ''; empty.style.display = 'block'; return; }
+  empty.style.display = 'none';
+  tbody.innerHTML = rows.map(r => `
+    <tr>
+      <td style="font-weight:600">${r.schools?.name||'—'}</td>
+      <td style="font-size:.73rem">${r.season||'—'}</td>
+      <td class="win-n" style="font-weight:700">${r.wins??'—'}</td>
+      <td class="loss-n" style="font-weight:700">${r.losses??'—'}</td>
+      <td class="draw-n">${r.draws??'—'}</td>
+      <td>${r.conference_ranking||'—'}</td>
+      <td>${r.national_ranking||'—'}</td>
+      <td><div class="row-actions">
+        <button class="btn-icon" onclick="openModal('stats','${r.id}')">edit</button>
+        <button class="btn-icon del" onclick="deleteRow('team_stats','${r.id}',loadStats)">del</button>
+      </div></td>
+    </tr>`).join('');
+}
+
+// ===== BENCHMARKS =====
+async function loadBenchmarks() {
+  const { data } = await sb.from('academic_benchmarks').select('*, schools(name)').order('updated_at', { ascending: false });
+  state.benchmarks = data || [];
+  renderBenchmarks();
+}
+
+function renderBenchmarks() {
+  const search = document.getElementById('bf-search').value.toLowerCase();
+  let rows = state.benchmarks.filter(r => !(search && !(r.schools?.name||'').toLowerCase().includes(search)));
+  const tbody = document.getElementById('benchmarks-body');
+  const empty = document.getElementById('benchmarks-empty');
+  if (!rows.length) { tbody.innerHTML = ''; empty.style.display = 'block'; return; }
+  empty.style.display = 'none';
+  tbody.innerHTML = rows.map(r => `
+    <tr>
+      <td style="font-weight:600">${r.schools?.name||'—'}</td>
+      <td>${r.min_gpa||'—'}</td>
+      <td>${r.min_sat||'—'}</td>
+      <td>${r.min_toefl||'—'}</td>
+      <td>${r.avg_gpa_accepted||'—'}</td>
+      <td style="font-size:.72rem;color:var(--cream-dim)">${r.notes||'—'}</td>
+      <td><div class="row-actions">
+        <button class="btn-icon" onclick="openModal('benchmark','${r.id}')">edit</button>
+        <button class="btn-icon del" onclick="deleteRow('academic_benchmarks','${r.id}',loadBenchmarks)">del</button>
+      </div></td>
+    </tr>`).join('');
+}
+
+// ===== SCHOLARSHIPS =====
+async function loadScholarships() {
+  const { data } = await sb.from('scholarships').select('*, schools(name)').order('last_verified', { ascending: false });
+  state.scholarships = data || [];
+  renderScholarships();
+}
+
+function renderScholarships() {
+  const search = document.getElementById('schf-search').value.toLowerCase();
+  let rows = state.scholarships.filter(r => !(search && !(r.schools?.name||'').toLowerCase().includes(search)));
+  const tbody = document.getElementById('scholarships-body');
+  const empty = document.getElementById('scholarships-empty');
+  if (!rows.length) { tbody.innerHTML = ''; empty.style.display = 'block'; return; }
+  empty.style.display = 'none';
+  tbody.innerHTML = rows.map(r => `
+    <tr>
+      <td style="font-weight:600">${r.schools?.name||'—'}</td>
+      <td style="color:var(--green);font-weight:700">${r.full_rides_available??'—'}</td>
+      <td style="color:var(--yellow)">${r.partial_available??'—'}</td>
+      <td style="font-size:.72rem;color:var(--cream-dim)">${r.aid_details||'—'}</td>
+      <td style="font-size:.72rem">${r.last_verified||'—'}</td>
+      <td><div class="row-actions">
+        <button class="btn-icon" onclick="openModal('scholarship','${r.id}')">edit</button>
+        <button class="btn-icon del" onclick="deleteRow('scholarships','${r.id}',loadScholarships)">del</button>
+      </div></td>
+    </tr>`).join('');
+}
+
+// ===== EVENTS =====
+async function loadEvents() {
+  const { data } = await sb.from('events').select('*').order('event_date');
+  state.events = data || [];
+  renderEvents();
+}
+
+function renderEvents() {
+  const search = document.getElementById('ef-search').value.toLowerCase();
+  const type   = document.getElementById('ef-type').value;
+  let rows = state.events.filter(e => {
+    if (search && !e.title.toLowerCase().includes(search)) return false;
+    if (type && e.event_type !== type) return false;
+    return true;
+  });
+  const grid  = document.getElementById('events-grid');
+  const empty = document.getElementById('events-empty');
+  if (!rows.length) { grid.innerHTML = ''; empty.style.display = 'block'; return; }
+  empty.style.display = 'none';
+  grid.innerHTML = rows.map(e => `
+    <div class="event-card">
+      <div><span class="event-type-badge etype-${e.event_type||'other'}">${e.event_type||'other'}</span></div>
+      <div class="event-date">${formatDate(e.event_date)}</div>
+      <div class="event-title">${e.title}</div>
+      <div class="event-loc">${e.location||'—'}</div>
+      ${e.description ? `<div style="font-size:.71rem;color:var(--cream-dim);margin-top:6px">${e.description}</div>` : ''}
+      <div style="display:flex;gap:6px;margin-top:12px">
+        <button class="btn-icon" onclick="openModal('event','${e.id}')">edit</button>
+        <button class="btn-icon del" onclick="deleteRow('events','${e.id}',loadEvents)">del</button>
+      </div>
+    </div>`).join('');
+}
+
+function formatDate(d) {
+  if (!d) return '—';
+  const dt = new Date(d + 'T00:00:00');
+  return dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+}
+
+// ===== MODAL =====
+let modalResolve = null;
+
+function openModal(type, id = null) {
+  state.modalType = type;
+  state.editing = id;
+  const titles = { school:'school', player:'player', pipeline:'pipeline entry', stats:'team stats', benchmark:'academic benchmark', scholarship:'scholarship', event:'event' };
+  document.getElementById('modal-title').textContent = (id ? 'edit ' : 'add ') + (titles[type]||type);
+  document.getElementById('modal-body').innerHTML = getModalForm(type, id);
+  document.getElementById('modal-overlay').classList.add('show');
+}
+
+function closeModal() { document.getElementById('modal-overlay').classList.remove('show'); state.editing = null; state.modalType = null; }
+function closeModalOnBg(e) { if (e.target === document.getElementById('modal-overlay')) closeModal(); }
+
+function getModalForm(type, id) {
+  const school = id ? state.schools.find(s => s.id === id) : null;
+  const player = id ? state.players.find(p => p.id === id) : null;
+  const pipe   = id ? state.pipeline.find(p => p.id === id) : null;
+  const stat   = id ? state.stats.find(s => s.id === id) : null;
+  const bench  = id ? state.benchmarks.find(b => b.id === id) : null;
+  const sch    = id ? state.scholarships.find(s => s.id === id) : null;
+  const ev     = id ? state.events.find(e => e.id === id) : null;
+
+  const schoolOpts = state.schools.map(s => `<option value="${s.id}" ${(pipe?.school_id===s.id||stat?.school_id===s.id||bench?.school_id===s.id||sch?.school_id===s.id)?'selected':''}>${s.name}</option>`).join('');
+  const playerOpts = state.players.map(p => `<option value="${p.id}" ${pipe?.player_id===p.id?'selected':''}>${p.full_name}</option>`).join('');
+
+  if (type === 'school') return `
+    <div class="form-row">
+      <div class="form-field"><label>school name</label><input id="f-name" value="${school?.name||''}"></div>
+      <div class="form-field"><label>division</label><select id="f-div"><option ${school?.division==='D1'?'selected':''}>D1</option><option ${school?.division==='D2'?'selected':''}>D2</option><option ${school?.division==='D3'?'selected':''}>D3</option><option ${school?.division==='NAIA'?'selected':''}>NAIA</option><option ${school?.division==='JUCO'?'selected':''}>JUCO</option></select></div>
+    </div>
+    <div class="form-row">
+      <div class="form-field"><label>conference</label><input id="f-conf" value="${school?.conference||''}"></div>
+      <div class="form-field"><label>state</label><input id="f-state" value="${school?.state||''}"></div>
+    </div>
+    <div class="form-field"><label>head coach email</label><input id="f-hce" value="${school?.head_coach_email||''}"></div>
+    <div class="form-field"><label>head coach phone</label><input id="f-hcp" value="${school?.head_coach_phone||''}"></div>
+    <div class="form-field"><label>assistant coach 1 email</label><input id="f-ac1" value="${school?.assistant_coach1_email||''}"></div>
+    <div class="form-field"><label>assistant coach 2 email</label><input id="f-ac2" value="${school?.assistant_coach2_email||''}"></div>
+    <div class="form-field"><label>website</label><input id="f-web" value="${school?.website||''}"></div>
+    <div class="form-field"><label>notes</label><textarea id="f-notes" rows="2">${school?.notes||''}</textarea></div>`;
+
+  if (type === 'player') return `
+    <div class="form-row">
+      <div class="form-field"><label>full name</label><input id="f-name" value="${player?.full_name||''}"></div>
+      <div class="form-field"><label>nationality</label><input id="f-nat" value="${player?.nationality||''}"></div>
+    </div>
+    <div class="form-row">
+      <div class="form-field"><label>position</label><select id="f-pos"><option value="">—</option>${['GK','CB','LB','RB','CDM','CM','CAM','LW','RW','ST'].map(p=>`<option ${player?.position===p?'selected':''}>${p}</option>`).join('')}</select></div>
+      <div class="form-field"><label>date of birth</label><input type="date" id="f-dob" value="${player?.date_of_birth||''}"></div>
+    </div>
+    <div class="form-row">
+      <div class="form-field"><label>gpa</label><input type="number" step="0.01" min="0" max="4" id="f-gpa" value="${player?.gpa||''}"></div>
+      <div class="form-field"><label>sat score</label><input type="number" id="f-sat" value="${player?.sat||''}"></div>
+    </div>
+    <div class="form-row">
+      <div class="form-field"><label>tier</label><select id="f-tier"><option value="">—</option><option ${player?.tier==='high'?'selected':''}>high</option><option ${player?.tier==='mid'?'selected':''}>mid</option><option ${player?.tier==='low'?'selected':''}>low</option></select></div>
+      <div class="form-field"><label>current club</label><input id="f-club" value="${player?.current_club||''}"></div>
+    </div>
+    <div class="form-field"><label>highlights url</label><input id="f-url" value="${player?.highlights_url||''}"></div>
+    <div class="form-field"><label>notes</label><textarea id="f-notes" rows="2">${player?.notes||''}</textarea></div>`;
+
+  if (type === 'pipeline') return `
+    <div class="form-field"><label>player</label><select id="f-player"><option value="">select player...</option>${playerOpts}</select></div>
+    <div class="form-field"><label>school</label><select id="f-school"><option value="">select school...</option>${schoolOpts}</select></div>
+    <div class="form-field"><label>status</label><select id="f-status">${['not_contacted','contacted','responded','visit_scheduled','offer','declined','signed'].map(s=>`<option value="${s}" ${pipe?.status===s?'selected':''}>${s.replace('_',' ')}</option>`).join('')}</select></div>
+    <div class="form-row">
+      <div class="form-field"><label>last contact date</label><input type="date" id="f-date" value="${pipe?.last_contact_date||''}"></div>
+      <div class="form-field"><label>next step</label><input id="f-next" value="${pipe?.next_step||''}"></div>
+    </div>
+    <div class="form-field"><label>notes</label><textarea id="f-notes" rows="3">${pipe?.notes||''}</textarea></div>`;
+
+  if (type === 'stats') return `
+    <div class="form-field"><label>school</label><select id="f-school"><option value="">select school...</option>${schoolOpts}</select></div>
+    <div class="form-field"><label>season</label><input id="f-season" placeholder="e.g. 2024" value="${stat?.season||''}"></div>
+    <div class="form-row">
+      <div class="form-field"><label>wins</label><input type="number" id="f-wins" min="0" value="${stat?.wins??''}"></div>
+      <div class="form-field"><label>losses</label><input type="number" id="f-losses" min="0" value="${stat?.losses??''}"></div>
+    </div>
+    <div class="form-row">
+      <div class="form-field"><label>draws</label><input type="number" id="f-draws" min="0" value="${stat?.draws??''}"></div>
+      <div class="form-field"><label>conference ranking</label><input type="number" id="f-confr" min="1" value="${stat?.conference_ranking||''}"></div>
+    </div>
+    <div class="form-field"><label>national ranking</label><input type="number" id="f-natr" min="1" value="${stat?.national_ranking||''}"></div>`;
+
+  if (type === 'benchmark') return `
+    <div class="form-field"><label>school</label><select id="f-school"><option value="">select school...</option>${schoolOpts}</select></div>
+    <div class="form-row">
+      <div class="form-field"><label>min gpa</label><input type="number" step="0.01" id="f-gpa" value="${bench?.min_gpa||''}"></div>
+      <div class="form-field"><label>min sat</label><input type="number" id="f-sat" value="${bench?.min_sat||''}"></div>
+    </div>
+    <div class="form-row">
+      <div class="form-field"><label>min toefl</label><input type="number" id="f-toefl" value="${bench?.min_toefl||''}"></div>
+      <div class="form-field"><label>avg gpa accepted</label><input type="number" step="0.01" id="f-avgpa" value="${bench?.avg_gpa_accepted||''}"></div>
+    </div>
+    <div class="form-field"><label>notes</label><textarea id="f-notes" rows="2">${bench?.notes||''}</textarea></div>`;
+
+  if (type === 'scholarship') return `
+    <div class="form-field"><label>school</label><select id="f-school"><option value="">select school...</option>${schoolOpts}</select></div>
+    <div class="form-row">
+      <div class="form-field"><label>full rides available</label><input type="number" id="f-full" min="0" value="${sch?.full_rides_available??''}"></div>
+      <div class="form-field"><label>partial scholarships</label><input type="number" id="f-partial" min="0" value="${sch?.partial_available??''}"></div>
+    </div>
+    <div class="form-field"><label>aid details</label><textarea id="f-details" rows="2">${sch?.aid_details||''}</textarea></div>
+    <div class="form-field"><label>last verified</label><input type="date" id="f-verified" value="${sch?.last_verified||''}"></div>`;
+
+  if (type === 'event') return `
+    <div class="form-field"><label>title</label><input id="f-title" value="${ev?.title||''}"></div>
+    <div class="form-row">
+      <div class="form-field"><label>type</label><select id="f-type">${['showcase','tournament','deadline','visit','other'].map(t=>`<option value="${t}" ${ev?.event_type===t?'selected':''}>${t}</option>`).join('')}</select></div>
+      <div class="form-field"><label>date</label><input type="date" id="f-date" value="${ev?.event_date||''}"></div>
+    </div>
+    <div class="form-field"><label>location</label><input id="f-loc" value="${ev?.location||''}"></div>
+    <div class="form-field"><label>description</label><textarea id="f-desc" rows="3">${ev?.description||''}</textarea></div>`;
+  return '';
+}
+
+async function saveModal() {
+  const type = state.modalType;
+  const id   = state.editing;
+  let payload = {};
+  const g = (sel) => { const el = document.querySelector(sel); return el ? el.value.trim() : ''; };
+
+  if (type === 'school') {
+    payload = { name:g('#f-name'), division:g('#f-div'), conference:g('#f-conf'), state:g('#f-state'), head_coach_email:g('#f-hce'), head_coach_phone:g('#f-hcp'), assistant_coach1_email:g('#f-ac1'), assistant_coach2_email:g('#f-ac2'), website:g('#f-web'), notes:g('#f-notes') };
+    if (!payload.name) { toast('school name required', true); return; }
+  } else if (type === 'player') {
+    payload = { full_name:g('#f-name'), nationality:g('#f-nat'), position:g('#f-pos')||null, date_of_birth:g('#f-dob')||null, gpa:parseFloat(g('#f-gpa'))||null, sat:parseInt(g('#f-sat'))||null, tier:g('#f-tier')||null, current_club:g('#f-club'), highlights_url:g('#f-url'), notes:g('#f-notes') };
+    if (!payload.full_name) { toast('name required', true); return; }
+  } else if (type === 'pipeline') {
+    payload = { player_id:g('#f-player')||null, school_id:g('#f-school')||null, status:g('#f-status'), last_contact_date:g('#f-date')||null, next_step:g('#f-next'), notes:g('#f-notes') };
+    if (!payload.player_id || !payload.school_id) { toast('player and school required', true); return; }
+  } else if (type === 'stats') {
+    payload = { school_id:g('#f-school')||null, season:g('#f-season'), wins:parseInt(g('#f-wins'))||0, losses:parseInt(g('#f-losses'))||0, draws:parseInt(g('#f-draws'))||0, conference_ranking:parseInt(g('#f-confr'))||null, national_ranking:parseInt(g('#f-natr'))||null, updated_at:new Date().toISOString() };
+    if (!payload.school_id) { toast('school required', true); return; }
+  } else if (type === 'benchmark') {
+    payload = { school_id:g('#f-school')||null, min_gpa:parseFloat(g('#f-gpa'))||null, min_sat:parseInt(g('#f-sat'))||null, min_toefl:parseInt(g('#f-toefl'))||null, avg_gpa_accepted:parseFloat(g('#f-avgpa'))||null, notes:g('#f-notes'), updated_at:new Date().toISOString() };
+    if (!payload.school_id) { toast('school required', true); return; }
+  } else if (type === 'scholarship') {
+    payload = { school_id:g('#f-school')||null, full_rides_available:parseInt(g('#f-full'))||0, partial_available:parseInt(g('#f-partial'))||0, aid_details:g('#f-details'), last_verified:g('#f-verified')||null };
+    if (!payload.school_id) { toast('school required', true); return; }
+  } else if (type === 'event') {
+    payload = { title:g('#f-title'), event_type:g('#f-type'), event_date:g('#f-date')||null, location:g('#f-loc'), description:g('#f-desc') };
+    if (!payload.title) { toast('title required', true); return; }
+  }
+
+  const table = { school:'schools', player:'players', pipeline:'pipeline', stats:'team_stats', benchmark:'academic_benchmarks', scholarship:'scholarships', event:'events' }[type];
+  let error;
+  if (id) { const r = await sb.from(table).update(payload).eq('id', id); error = r.error; }
+  else     { const r = await sb.from(table).insert([payload]); error = r.error; }
+
+  if (error) { toast(error.message, true); return; }
+  toast('saved');
+  closeModal();
+  const reloaders = { school:loadSchools, player:loadPlayers, pipeline:loadPipeline, stats:loadStats, benchmark:loadBenchmarks, scholarship:loadScholarships, event:loadEvents };
+  reloaders[type]();
+}
+
+// ===== DELETE =====
+async function deleteRow(table, id, reload) {
+  if (!confirm('delete this record?')) return;
+  const { error } = await sb.from(table).delete().eq('id', id);
+  if (error) { toast(error.message, true); return; }
+  toast('deleted');
+  reload();
+}
+
+// ===== MATCHING: Player → Schools =====
+async function openPlayerMatchModal(playerId) {
+  const player = state.players.find(p => p.id === playerId);
+  if (!player) return;
+  const benchmarks = state.benchmarks;
+  const scholarships = state.scholarships;
+
+  const scored = state.schools.map(school => {
+    let score = 0;
+    const bench = benchmarks.find(b => b.school_id === school.id);
+    const sch   = scholarships.find(s => s.school_id === school.id);
+    if (player.gpa && bench?.min_gpa && player.gpa >= bench.min_gpa) score += 30;
+    if (player.sat && bench?.min_sat && player.sat >= bench.min_sat) score += 20;
+    if (sch && (sch.full_rides_available > 0 || sch.partial_available > 0)) score += 25;
+    const tierMap = { high:'D1', mid:'D2', low:'D3' };
+    if (player.tier && tierMap[player.tier] === school.division) score += 15;
+    if (!bench && !sch) score += 5;
+    const inPipeline = state.pipeline.find(p => p.player_id === playerId && p.school_id === school.id);
+    if (!inPipeline) score += 5;
+    return { school, score };
+  }).filter(r => r.score > 0).sort((a, b) => b.score - a.score).slice(0, 20);
+
+  document.getElementById('modal-title').textContent = `top matches — ${player.full_name}`;
+  document.getElementById('modal-body').innerHTML = scored.length ? scored.map((r, i) => `
+    <div class="match-card">
+      <div class="match-rank">#${i+1}</div>
+      <div class="match-info">
+        <div class="match-name">${r.school.name}</div>
+        <div class="match-conf">${r.school.conference||''} · ${r.school.division||''}</div>
+        <div class="match-bar"><div class="match-fill" style="width:${Math.min(100,(r.score/100)*100)}%"></div></div>
+      </div>
+      <div class="match-score">${r.score}pts</div>
+    </div>`).join('') : '<div style="color:var(--cream-dim);font-size:.8rem">no match data — add academic benchmarks and scholarships first.</div>';
+  document.getElementById('modal-save').style.display = 'none';
+  document.getElementById('modal-overlay').classList.add('show');
+  document.getElementById('modal-overlay').addEventListener('click', function onc(e) {
+    if (e.target === this) { closeModal(); document.getElementById('modal-save').style.display = ''; this.removeEventListener('click', onc); }
+  });
+}
+
+// Matching: School → Players
+async function openMatchModal(schoolId) {
+  const school = state.schools.find(s => s.id === schoolId);
+  const bench  = state.benchmarks.find(b => b.school_id === schoolId);
+
+  const scored = state.players.map(p => {
+    let score = 0;
+    if (bench?.min_gpa && p.gpa >= bench.min_gpa) score += 30;
+    if (bench?.min_sat && p.sat >= bench.min_sat) score += 20;
+    const tierMap = { high:'D1', mid:'D2', low:'D3' };
+    if (tierMap[p.tier] === school.division) score += 15;
+    if (score === 0) score = 1;
+    return { player: p, score };
+  }).sort((a,b) => b.score - a.score).slice(0, 10);
+
+  document.getElementById('modal-title').textContent = `player fits — ${school.name}`;
+  document.getElementById('modal-body').innerHTML = scored.map((r,i) => `
+    <div class="match-card">
+      <div class="match-rank">#${i+1}</div>
+      <div class="match-info">
+        <div class="match-name">${r.player.full_name}</div>
+        <div class="match-conf">gpa: ${r.player.gpa||'—'} · sat: ${r.player.sat||'—'} · tier: ${r.player.tier||'—'}</div>
+        <div class="match-bar"><div class="match-fill" style="width:${Math.min(100,(r.score/65)*100)}%"></div></div>
+      </div>
+      <div class="match-score">${r.score}pts</div>
+    </div>`).join('') || '<div style="color:var(--cream-dim)">no players to match. add players first.</div>';
+  document.getElementById('modal-save').style.display = 'none';
+  document.getElementById('modal-overlay').classList.add('show');
+}
+
+// ===== SEED D1 SCHOOLS =====
+const D1_SCHOOLS = [
+  // ASUN
+  {name:'Bellarmine University',conference:'ASUN',division:'D1',head_coach_email:'mcannady@bellarmine.edu',assistant_coach1_email:'nsego@bellarmine.edu',assistant_coach2_email:'mgoetz@bellarmine.edu'},
+  {name:'University of Central Arkansas',conference:'ASUN',division:'D1',head_coach_email:'ksegebart@uca.edu',assistant_coach1_email:'jlacasto@uca.edu',assistant_coach2_email:'wmontgomery@uca.edu'},
+  {name:'Florida Gulf Coast University',conference:'ASUN',division:'D1',head_coach_email:'otwelvetrees@Fgcu.edu',assistant_coach1_email:'omccorkle@fgcu.edu',assistant_coach2_email:'glaguna@fgcu.edu'},
+  {name:'Jacksonville University',conference:'ASUN',division:'D1',head_coach_email:'asimmon17@ju.edu',assistant_coach1_email:'tbuckne@ju.edu',assistant_coach2_email:'jmoreir@jacksonville.edu'},
+  {name:'Liberty University',conference:'ASUN',division:'D1',head_coach_email:'lumensoccer@liberty.edu'},
+  {name:'Lipscomb University',conference:'ASUN',division:'D1',head_coach_email:'charles.morrow@lipscomb.edu',head_coach_phone:'(615) 966-5866',assistant_coach1_email:'mdhorth@lipscomb.edu',assistant_coach2_email:'jmlucumivillegas@lipscomb.edu'},
+  {name:'University of North Florida',conference:'ASUN',division:'D1',head_coach_email:'unfmsoccer@unf.edu',assistant_coach1_email:'a.rangel@unf.edu',assistant_coach2_email:'n01616465@unf.edu'},
+  {name:'Queens University of Charlotte',conference:'ASUN',division:'D1',head_coach_email:'cariaso@queens.edu',head_coach_phone:'704-337-2530',assistant_coach1_email:'okyaro@queens.edu',assistant_coach2_email:'mendoncaf@queens.edu'},
+  {name:'Stetson University',conference:'ASUN',division:'D1',head_coach_email:'erutkowski@stetson.edu',assistant_coach1_email:'efjimenez@stetson.edu',assistant_coach2_email:'Ojack@stetson.edu'},
+  // ACC
+  {name:'Boston College',conference:'ACC',division:'D1',head_coach_email:'msoccer@bc.edu',assistant_coach1_email:'dagostfr@bc.edu',assistant_coach2_email:'adelma@bc.edu'},
+  {name:'Clemson University',conference:'ACC',division:'D1',head_coach_email:'msoccer@clemson.edu'},
+  {name:'Duke University',conference:'ACC',division:'D1',head_coach_email:'jjk21@duke.edu',head_coach_phone:'(919) 668-5734',assistant_coach1_email:'michael.brady@duke.edu',assistant_coach2_email:'kyle.johnston@duke.edu'},
+  {name:'University of Louisville',conference:'ACC',division:'D1',head_coach_email:'johnh@GoCards.com',head_coach_phone:'852-0105',assistant_coach1_email:'slunney@GoCards.com'},
+  {name:'NC State',conference:'ACC',division:'D1',head_coach_email:'mens_soccer@ncsu.edu'},
+  {name:'Notre Dame',conference:'ACC',division:'D1',head_coach_phone:'631-3383',assistant_coach1_email:'mgraczyk@nd.edu'},
+  {name:'University of Pittsburgh',conference:'ACC',division:'D1',head_coach_email:'msoccer@athletics.pitt.edu',assistant_coach1_email:'bcregan@athletics.pitt.edu',assistant_coach2_email:'zschilawski@athletics.pitt.edu'},
+  {name:'Syracuse University',conference:'ACC',division:'D1',head_coach_email:'ismcinty@syr.edu',assistant_coach1_email:'jmasalin@syr.edu',assistant_coach2_email:'sarestre@syr.edu'},
+  {name:'UNC Chapel Hill',conference:'ACC',division:'D1',head_coach_email:'csomoano@uncaa.unc.edu',head_coach_phone:'919-962-5739',assistant_coach1_email:'gtporter@uncaa.unc.edu'},
+  {name:'University of Virginia',conference:'ACC',division:'D1',head_coach_email:'Vrp9as@virginia.edu',head_coach_phone:'434-982-5701',assistant_coach1_email:'mrc5r@virginia.edu'},
+  {name:'Virginia Tech',conference:'ACC',division:'D1',head_coach_email:'vtmsoccer@vt.edu'},
+  {name:'Wake Forest',conference:'ACC',division:'D1',head_coach_email:'muussrp@wfu.edu',head_coach_phone:'336-758-5783',assistant_coach1_email:'armasas@wfu.edu',assistant_coach2_email:'brennerd@wfu.edu'},
+  // AAC
+  {name:'UAB',conference:'AAC',division:'D1',head_coach_email:'lillyd@uab.edu',assistant_coach1_email:'findlayk@uab.edu',assistant_coach2_email:'acreakes@uab.edu'},
+  {name:'UCF',conference:'AAC',division:'D1',head_coach_email:'soccer@athletics.ucf.edu',assistant_coach2_email:'anyquist@athletics.ucf.edu'},
+  {name:'Charlotte',conference:'AAC',division:'D1',head_coach_email:'klangan1@uncc.edu',assistant_coach1_email:'rodriguez@uncc.edu',assistant_coach2_email:'scarew1@charlotte.edu'},
+  {name:'Florida Atlantic University',conference:'AAC',division:'D1',head_coach_email:'worthenj@fau.edu',assistant_coach1_email:'harmant@fau.edu',assistant_coach2_email:'bshore2014@fau.edu'},
+  {name:'FIU',conference:'AAC',division:'D1',head_coach_email:'krussell@fiu.edu',assistant_coach1_email:'dmerida@fiu.edu',assistant_coach2_email:'lchampen@fiu.edu'},
+  {name:'Memphis',conference:'AAC',division:'D1',head_coach_email:'rmulrony@memphis.edu',assistant_coach1_email:'pmcmnus1@memphis.edu',assistant_coach2_email:'kjtello@memphis.edu'},
+  {name:'USF',conference:'AAC',division:'D1',head_coach_email:'msoccer@usf.edu',assistant_coach1_email:'danieldeoliveira@usf.edu'},
+  {name:'SMU',conference:'AAC',division:'D1',head_coach_email:'khudson@smu.edu',assistant_coach1_email:'mjking@mail.smu.edu',assistant_coach2_email:'jibarraperez@smu.edu'},
+  {name:'Temple',conference:'AAC',division:'D1',assistant_coach1_email:'john.velasco@temple.edu',assistant_coach2_email:'ryan.sandell@temple.edu'},
+  {name:'Tulsa',conference:'AAC',division:'D1',head_coach_email:'thomas-mcintosh@utulsa.edu',assistant_coach1_email:'hms7580@utulsa.edu',assistant_coach2_email:'jpn3497@utulsa.edu'},
+  // AEC
+  {name:'Albany',conference:'AEC',division:'D1',head_coach_email:'tgorman@albany.edu'},
+  {name:'Binghamton',conference:'AEC',division:'D1',head_coach_email:'pmarco@binghamton.edu',head_coach_phone:'607-777-4571',assistant_coach1_email:'tmoon@binghamton.edu',assistant_coach2_email:'emaslin@binghamton.edu'},
+  {name:'Hartford',conference:'AEC',division:'D1',head_coach_email:'mkulas@hartford.edu',assistant_coach1_email:'tsadler@hartford.edu'},
+  {name:'New Hampshire',conference:'AEC',division:'D1',head_coach_email:'richard.weinrebe@unh.edu',head_coach_phone:'603-862-3211',assistant_coach1_email:'ian.deoliveira@unh.edu',assistant_coach2_email:'Alan.Kehoe@unh.edu'},
+  {name:'NJIT',conference:'AEC',division:'D1',head_coach_email:'barboto@njit.edu',head_coach_phone:'973-596-5219',assistant_coach1_email:'muy@njit.edu',assistant_coach2_email:'afreitas@njit.edu'},
+  {name:'Stony Brook',conference:'AEC',division:'D1',head_coach_email:'ryan.anatol@stonybrook.edu',assistant_coach1_email:'carlos.delcid@stonybrook.edu',assistant_coach2_email:'gabriel.fernandes@stonybrook.edu'},
+  {name:'UMBC',conference:'AEC',division:'D1',head_coach_email:'A.Adams@umbc.edu',assistant_coach1_email:'pete10@umbc.edu',assistant_coach2_email:'wkerr2@umbc.edu'},
+  {name:'UMASS Lowell',conference:'AEC',division:'D1',head_coach_email:'kyle_zenoni@uml.edu',assistant_coach1_email:'Jason_Stanton@uml.edu',assistant_coach2_email:'Diego_Campos@uml.edu'},
+  {name:'Vermont',conference:'AEC',division:'D1',head_coach_email:'mens.soccer@uvm.edu'},
+  // A10
+  {name:'Davidson',conference:'A10',division:'D1',head_coach_email:'mibabst@davidson.edu',assistant_coach1_email:'jediluzio@davidson.edu',assistant_coach2_email:'malichtenstein@davidson.edu'},
+  {name:'Dayton',conference:'A10',division:'D1',head_coach_email:'dcurrier1@udayton.edu',assistant_coach1_email:'aranalli1@udayton.edu',assistant_coach2_email:'tbrown5@udayton.edu'},
+  {name:'Duquesne',conference:'A10',division:'D1',head_coach_email:'brooksc1@duq.edu',head_coach_phone:'412-396-5242',assistant_coach1_email:'faintj@duq.edu',assistant_coach2_email:'gloriosog@duq.edu'},
+  {name:'Fordham',conference:'A10',division:'D1',head_coach_email:'cacquista@fordham.edu',assistant_coach1_email:'pbannister@fordham.edu',assistant_coach2_email:'mdavidovic@fordham.edu'},
+  {name:'George Mason',conference:'A10',division:'D1',head_coach_email:'rcostanz@gmu.edu',assistant_coach1_email:'norozco@gmu.edu',assistant_coach2_email:'mcallah7@gmu.edu'},
+  {name:'George Washington',conference:'A10',division:'D1',head_coach_email:'m.watts1@gwu.edu',assistant_coach1_email:'nicholas.conklu@gwu.edu',assistant_coach2_email:'r.ainscough@email.gwu.edu'},
+  {name:'La Salle',conference:'A10',division:'D1',head_coach_email:'thames@lasalle.edu',assistant_coach1_email:'elgayar@lasalle.edu',assistant_coach2_email:'kessler@lasalle.edu'},
+  {name:'Rhode Island',conference:'A10',division:'D1',head_coach_email:'gelliott@uri.edu',assistant_coach1_email:'tony_bassett@uri.edu',assistant_coach2_email:'frank_bergren@uri.edu'},
+  {name:"Saint Joseph's",conference:'A10',division:'D1',head_coach_email:'tmulqueen@sju.edu',assistant_coach1_email:'tlazorko@sju.edu'},
+  {name:'Saint Louis University',conference:'A10',division:'D1',head_coach_email:'kkalish2@slu.edu',head_coach_phone:'314-977-3184',assistant_coach1_email:'kevin.stoll@slu.edu',assistant_coach2_email:'jack.roberts@slu.edu'},
+  {name:'St Bonaventure',conference:'A10',division:'D1',head_coach_email:'mgiordano@sbu.edu',head_coach_phone:'716-375-2359',assistant_coach1_email:'dbermingham@sbu.edu'},
+  {name:'UMass Amherst',conference:'A10',division:'D1',head_coach_email:'umassmsoccer@umass.edu',assistant_coach1_email:'jreimers@umass.edu'},
+  {name:'VCU',conference:'A10',division:'D1',head_coach_email:'drgiffard@vcu.edu',assistant_coach1_email:'paulinil@vcu.edu',assistant_coach2_email:'pedrazarodc@vcu.edu'},
+  // Big East
+  {name:'Butler',conference:'Big East',division:'D1',head_coach_email:'psnape@butler.edu',assistant_coach1_email:'abruh@butler.edu',assistant_coach2_email:'jmoulden@butler.edu'},
+  {name:'Creighton',conference:'Big East',division:'D1',head_coach_email:'creightonsocceracademy@creighton.edu',assistant_coach1_email:'nicolasluque@creighton.edu',assistant_coach2_email:'michaelgabb@creighton.edu'},
+  {name:'DePaul',conference:'Big East',division:'D1',head_coach_email:'mplotkin@depaul.edu',assistant_coach1_email:'sbratt@depaul.edu',assistant_coach2_email:'malba9@depaul.edu'},
+  {name:'Georgetown',conference:'Big East',division:'D1',head_coach_email:'gumenssoccer@georgetown.edu'},
+  {name:'Marquette',conference:'Big East',division:'D1',assistant_coach1_email:'sean.clancy@marquette.edu',assistant_coach2_email:'calum.mallace@marquette.edu'},
+  {name:'Providence',conference:'Big East',division:'D1',head_coach_email:'cstewar3@providence.edu',assistant_coach1_email:'jandrad4@providence.edu',assistant_coach2_email:'ddemello@providence.edu'},
+  {name:'Seton Hall',conference:'Big East',division:'D1',assistant_coach1_email:'jeffrey.matteo@shu.edu',assistant_coach2_email:'nicolai.andersen@shu.edu'},
+  {name:'St. Johns',conference:'Big East',division:'D1',head_coach_email:'masurd@stjohns.edu',assistant_coach1_email:'janezicd@stjohns.edu'},
+  {name:'UConn',conference:'Big East',division:'D1',head_coach_email:'menssoccer@uconn.edu',assistant_coach1_email:'stefan.defregger@uconn.edu',assistant_coach2_email:'kamali.webson@uconn.edu'},
+  {name:'Villanova',conference:'Big East',division:'D1',head_coach_email:'vumenssoccer@villanova.edu',assistant_coach1_email:'mark.fetrow@villanova.edu',assistant_coach2_email:'abalog@villanova.edu'},
+  {name:'Xavier',conference:'Big East',division:'D1',head_coach_email:'higginsj5@xavier.edu',assistant_coach1_email:'mahoneys3@xavier.edu',assistant_coach2_email:'kamphausa1@xavier.edu'},
+  // Big South
+  {name:'Campbell',conference:'Big South',division:'D1',head_coach_email:'fonder@campbell.edu',assistant_coach1_email:'oasad@campbell.edu'},
+  {name:'Gardner-Webb',conference:'Big South',division:'D1',head_coach_email:'swells5@gardner-webb.edu',assistant_coach1_email:'jodonnell1@gardner-webb.edu',assistant_coach2_email:'dbabbert@gardner-webb.edu'},
+  {name:'High Point',conference:'Big South',division:'D1',head_coach_email:'zhaines@highpoint.edu',assistant_coach1_email:'jgillon@highpoint.edu',assistant_coach2_email:'mmarcey1@highpoint.edu'},
+  {name:'Longwood',conference:'Big South',division:'D1',head_coach_email:'gilbertpe@longwood.edu',assistant_coach1_email:'sadulay@longwood.edu',assistant_coach2_email:'finn.jurak@live.longwood.edu'},
+  {name:'Presbyterian',conference:'Big South',division:'D1',head_coach_email:'nafinotti@presby.edu',assistant_coach1_email:'jdouvas@presby.edu',assistant_coach2_email:'jpooler@presby.edu'},
+  {name:'Radford',conference:'Big South',division:'D1',head_coach_email:'cbarrett@radford.edu',assistant_coach1_email:'acormack1@radford.edu'},
+  {name:'UNC Asheville',conference:'Big South',division:'D1',head_coach_email:'mgiordan@unca.edu',assistant_coach1_email:'jlacasto@unca.edu',assistant_coach2_email:'rhreha@unca.edu'},
+  {name:'USC Upstate',conference:'Big South',division:'D1',head_coach_email:'AntonieM@uscupstate.edu',assistant_coach1_email:'md147@uscupstate.edu'},
+  {name:'Winthrop',conference:'Big South',division:'D1',head_coach_email:'ridenhourd@winthrop.edu',assistant_coach1_email:'barnesz@winthrop.edu'},
+  // Big Ten
+  {name:'Indiana',conference:'Big Ten',division:'D1',assistant_coach1_email:'kprobson@indiana.edu',assistant_coach2_email:'clomeli@iu.edu'},
+  {name:'Maryland',conference:'Big Ten',division:'D1',head_coach_email:'sasho@umd.edu',assistant_coach1_email:'jpace20@umd.edu',assistant_coach2_email:'rowlandb@umd.edu'},
+  {name:'Michigan',conference:'Big Ten',division:'D1',head_coach_email:'email.msoccer@umich.edu'},
+  {name:'Michigan State',conference:'Big Ten',division:'D1',head_coach_email:'rensingd@ath.msu.edu',assistant_coach1_email:'rfriedrichs@ath.msu.edu',assistant_coach2_email:'tkolba@ath.msu.edu'},
+  {name:'Northwestern',conference:'Big Ten',division:'D1',head_coach_email:'msoccer@northwestern.edu',assistant_coach1_email:'rbouemboue@northwestern.edu',assistant_coach2_email:'jr.derose@northwestern.edu'},
+  {name:'Ohio State',conference:'Big Ten',division:'D1',head_coach_email:'maisonneuve.2@osu.edu',assistant_coach1_email:'Morris.1925@osu.edu',assistant_coach2_email:'foldesy.1@osu.edu'},
+  {name:'Penn State',conference:'Big Ten',division:'D1',head_coach_email:'msoc@athletics.psu.edu',assistant_coach1_email:'spl147@psu.edu'},
+  {name:'Rutgers',conference:'Big Ten',division:'D1',assistant_coach1_email:'gwyse@scarletknights.com',assistant_coach2_email:'tstakiwicz@scarletknights.com'},
+  {name:'Wisconsin',conference:'Big Ten',division:'D1',head_coach_email:'nwj@athletics.wisc.edu',assistant_coach1_email:'NBB@athletics.wisc.edu',assistant_coach2_email:'RAO@athletics.wisc.edu'},
+  // Big West
+  {name:'Cal Poly',conference:'Big West',division:'D1',head_coach_email:'mensoccer@calpoly.edu',assistant_coach1_email:'zwatso01@calpoly.edu',assistant_coach2_email:'bbauti11@calpoly.edu'},
+  {name:'Cal State Fullerton',conference:'Big West',division:'D1',head_coach_email:'gkuntz@fullerton.edu',assistant_coach1_email:'irgarcia@fullerton.edu',assistant_coach2_email:'encardenas@fullerton.edu'},
+  {name:'CSU Bakersfield',conference:'Big West',division:'D1',head_coach_email:'agrant8@csub.edu',assistant_coach1_email:'ekeogh1@csub.edu',assistant_coach2_email:'carmendariz-flores@csub.edu'},
+  {name:'CSUN',conference:'Big West',division:'D1',head_coach_email:'terry.davila@csun.edu',assistant_coach1_email:'Milan.radovic@csun.edu',assistant_coach2_email:'rafael.garcia@csun.edu'},
+  {name:'Sacramento State',conference:'Big West',division:'D1',head_coach_email:'bergs@csus.edu',assistant_coach1_email:'mmcdougall@csus.edu'},
+  {name:'UC Davis',conference:'Big West',division:'D1',head_coach_email:'ucdavissoccer@ucdavis.edu',assistant_coach1_email:'jmhotaling@ucdavis.edu'},
+  {name:'UC Irvine',conference:'Big West',division:'D1',head_coach_email:'yraz@uci.edu',assistant_coach1_email:'caler@uci.edu',assistant_coach2_email:'yadrabi@uci.edu'},
+  {name:'UC Riverside',conference:'Big West',division:'D1',head_coach_email:'Tim.Cupello@ucr.edu',assistant_coach1_email:'cvolk@ucr.edu',assistant_coach2_email:'romario.lomeli@ucr.edu'},
+  {name:'UC Santa Barbara',conference:'Big West',division:'D1',head_coach_email:'Tim.VomSteeg@athletics.ucsb.edu',assistant_coach1_email:'menssoccer@athletics.ucsb.edu'},
+  {name:'UC San Diego',conference:'Big West',division:'D1',head_coach_email:'jpascale@ucsd.edu',assistant_coach1_email:'ryanhernandez@ucsd.edu'},
+  // CAA
+  {name:'Charleston',conference:'CAA',division:'D1',head_coach_email:'danielsmee@ucwv.edu'},
+  {name:'Delaware',conference:'CAA',division:'D1',head_coach_email:'tommymc@udel.edu',assistant_coach1_email:'makarj@udel.edu',assistant_coach2_email:'jcleland@udel.edu'},
+  {name:'Drexel',conference:'CAA',division:'D1',head_coach_email:'dc3369@drexel.edu',assistant_coach1_email:'pm958@drexel.edu',assistant_coach2_email:'lgf27@drexel.edu'},
+  {name:'Elon',conference:'CAA',division:'D1',head_coach_email:'mreeves3@elon.edu',assistant_coach1_email:'bwhite24@elon.edu'},
+  {name:'Hofstra',conference:'CAA',division:'D1',head_coach_email:'richard.m.nuttall@hofstra.edu',assistant_coach1_email:'stephen.roche@hofstra.edu',assistant_coach2_email:'shaun.d.foster@hofstra.edu'},
+  {name:'James Madison',conference:'CAA',division:'D1',head_coach_email:'zazenspm@jmu.edu',assistant_coach1_email:'hubbarcj@jmu.edu',assistant_coach2_email:'melvilnd@jmu.edu'},
+  {name:'Northeastern',conference:'CAA',division:'D1',head_coach_email:'j.bonomo@northeastern.edu',assistant_coach1_email:'r.pinto@northeastern.edu'},
+  {name:'UNCW',conference:'CAA',division:'D1',head_coach_email:'heaneya@uncw.edu',assistant_coach1_email:'dunnel@uncw.edu',assistant_coach2_email:'leskoj@uncw.edu'},
+  {name:'William & Mary',conference:'CAA',division:'D1',head_coach_email:'cmnorr@wm.edu',assistant_coach1_email:'ksymczak@wm.edu',assistant_coach2_email:'tjdoll@wm.edu'},
+  // Horizon
+  {name:'Cleveland State',conference:'Horizon',division:'D1',head_coach_email:'s.ubiparipovic81@csuohio.edu',assistant_coach1_email:'v.maharaj@csuohio.edu'},
+  {name:'Detroit Mercy',conference:'Horizon',division:'D1',head_coach_email:'kopunent@udmercy.edu',assistant_coach1_email:'broadwzn@udmercy.edu',assistant_coach2_email:'kowalcls@udmercy.edu'},
+  {name:'Wisconsin-Green Bay',conference:'Horizon',division:'D1',head_coach_email:'oreillyj@uwgb.edu',assistant_coach1_email:'ihnk@uwgb.edu'},
+  {name:'IUPUI',conference:'Horizon',division:'D1',head_coach_email:'svandru@iupui.edu',assistant_coach1_email:'arturodr@iu.edu',assistant_coach2_email:'qmccalli@iu.edu'},
+  {name:'Milwaukee',conference:'Horizon',division:'D1',head_coach_email:'kelderma@uwm.edu',assistant_coach1_email:'gtr@uwm.edu',assistant_coach2_email:'amrey@uwm.edu'},
+  {name:'Northern Kentucky',conference:'Horizon',division:'D1',head_coach_email:'poitrast1@nku.edu',assistant_coach1_email:'banksj9@nku.edu',assistant_coach2_email:'fryer3@nku.edu'},
+  {name:'Oakland',conference:'Horizon',division:'D1',head_coach_email:'doroh@oakland.edu',assistant_coach1_email:'jtinnion@oakland.edu',assistant_coach2_email:'tsauerbry@oakland.edu'},
+  {name:'Purdue Fort Wayne',conference:'Horizon',division:'D1',head_coach_email:'sgorton@pfw.edu',assistant_coach1_email:'jjlogan@pfw.edu',assistant_coach2_email:'sdhunnoo@pfw.edu'},
+  {name:'Robert Morris',conference:'Horizon',division:'D1',head_coach_email:'menssoccer@rmu.edu',assistant_coach1_email:'lopezmendoza@rmu.edu'},
+  {name:'UIC',conference:'Horizon',division:'D1',head_coach_email:'sephill@uic.edu',assistant_coach1_email:'korol@uic.edu',assistant_coach2_email:'minos@uic.edu'},
+  {name:'Wright State',conference:'Horizon',division:'D1',head_coach_email:'alex.vandersluijs@wright.edu',assistant_coach1_email:'christopher.garcia@wright.edu',assistant_coach2_email:'adam.maloney@wright.edu'},
+  // MAAC
+  {name:'Canisius',conference:'MAAC',division:'D1',head_coach_email:'tankem@canisius.edu',assistant_coach1_email:'spaconem@canisius.edu'},
+  {name:'Fairfield',conference:'MAAC',division:'D1',head_coach_email:'kwitkowski@fairfield.edu',assistant_coach1_email:'jonathan.raj@fairfield.edu',assistant_coach2_email:'apaolini@fairfield.edu'},
+  {name:'Iona',conference:'MAAC',division:'D1',head_coach_email:'jhamilton@iona.edu',assistant_coach1_email:'awhitehead@iona.edu',assistant_coach2_email:'smccarthy@iona.edu'},
+  {name:'Manhattan',conference:'MAAC',division:'D1',head_coach_email:'jorden.scott@manhattan.edu',assistant_coach1_email:'asantos06@manhattan.edu',assistant_coach2_email:'bcoundoul01@manhattan.edu'},
+  {name:'Marist',conference:'MAAC',division:'D1',head_coach_email:'Matt.Viggiano@marist.edu',assistant_coach1_email:'richard.cusano@marist.edu',assistant_coach2_email:'Robert.Esposito@marist.edu'},
+  {name:'Monmouth',conference:'MAAC',division:'D1',head_coach_email:'rmccourt@monmouth.edu',assistant_coach1_email:'hmacdona@monmouth.edu'},
+  {name:'Niagara',conference:'MAAC',division:'D1',head_coach_email:'wboyle@niagara.edu',assistant_coach1_email:'dhesch@niagara.edu'},
+  {name:'Quinnipiac',conference:'MAAC',division:'D1',head_coach_email:'eric.dacosta@qu.edu',assistant_coach1_email:'matthew.jones@qu.edu',assistant_coach2_email:"Sean.O'Brien2@quinnipiac.edu"},
+  {name:'Rider',conference:'MAAC',division:'D1',head_coach_email:'mduernberger@rider.edu',assistant_coach1_email:'mwurzburger@rider.edu',assistant_coach2_email:'amunoz@rider.edu'},
+  {name:'Saint Peters',conference:'MAAC',division:'D1',head_coach_email:'jrichens@saintpeters.edu',assistant_coach1_email:'tcoulson17@saintpeters.edu',assistant_coach2_email:'fsmedema@saintpeters.edu'},
+  {name:'Siena',conference:'MAAC',division:'D1',head_coach_email:'gbrito@siena.edu',assistant_coach1_email:'jclementi@siena.edu',assistant_coach2_email:'mkcunningham@siena.edu'},
+  // MAC
+  {name:'Akron',conference:'MAC',division:'D1',head_coach_email:'menssoccer@uakron.edu'},
+  {name:'Bowling Green',conference:'MAC',division:'D1',head_coach_email:'enichol@bgsu.edu',assistant_coach1_email:'rljames@bgsu.edu'},
+  {name:'Chicago State',conference:'MAC',division:'D1',head_coach_email:'nhowze@csu.edu',assistant_coach1_email:'aponde21@csu.edu'},
+  {name:'Northern Illinois',conference:'MAC',division:'D1',head_coach_email:'rswan@niu.edu',assistant_coach1_email:'nroman@niu.edu',assistant_coach2_email:'rblair@niu.edu'},
+  {name:'Western Michigan',conference:'MAC',division:'D1',head_coach_email:'chad.wiseman@wmich.edu',assistant_coach1_email:'shane.e.lyons@wmich.edu',assistant_coach2_email:'samuel.biek@wmich.edu'},
+  // MVC
+  {name:'Bradley',conference:'MVC',division:'D1',head_coach_email:'soccer@bradley.edu',assistant_coach1_email:'tregan@fsmail.bradley.edu'},
+  {name:'Drake',conference:'MVC',division:'D1',head_coach_email:'patrick.flinn@drake.edu',assistant_coach1_email:'kyle.smith@drake.edu'},
+  {name:'Evansville',conference:'MVC',division:'D1',head_coach_email:'rt134@evansville.edu',assistant_coach1_email:'mm1059@evansville.edu'},
+  {name:'Loyola Chicago',conference:'MVC',division:'D1',head_coach_email:'sbode@luc.edu',assistant_coach1_email:'gbrennan@luc.edu'},
+  {name:'Missouri State',conference:'MVC',division:'D1',head_coach_email:'mseabolt@missouristate.edu',assistant_coach1_email:'DannyFrid@MissouriState.edu',assistant_coach2_email:'gillespie1888@missouristate.edu'},
+  {name:'SIUE',conference:'MVC',division:'D1',head_coach_email:'cawasse@siue.edu',assistant_coach1_email:'jordagr@siue.edu',assistant_coach2_email:'jaxwirt@siue.edu'},
+  // NEC
+  {name:'Bryant',conference:'NEC',division:'D1',head_coach_email:'rresendes@bryant.edu',assistant_coach1_email:'bpacheco5@bryant.edu',assistant_coach2_email:'jpitarch@bryant.edu'},
+  {name:'Central Connecticut',conference:'NEC',division:'D1',head_coach_email:'DKelly@ccsu.edu'},
+  {name:'FDU',conference:'NEC',division:'D1',head_coach_email:'jhighcock@fdu.edu',assistant_coach1_email:'t.capela@fdu.edu'},
+  {name:'Howard',conference:'NEC',division:'D1',head_coach_email:'phillip.gyau@howard.edu',assistant_coach1_email:'jason.gross@howard.edu'},
+  {name:'LIU',conference:'NEC',division:'D1',head_coach_email:'michael.mordocco@liu.edu',assistant_coach1_email:'tyler.botte@liu.edu',assistant_coach2_email:'jesse.corke@liu.edu'},
+  {name:'Merrimack',conference:'NEC',division:'D1',head_coach_email:'martonea@merrimack.edu',assistant_coach1_email:'nufim@merrimack.edu',assistant_coach2_email:'frassinea@merrimack.edu'},
+  {name:'Mount St. Mary',conference:'NEC',division:'D1',head_coach_email:'b.d.teach@msmary.edu',assistant_coach1_email:'d.j.orourke@msmary.edu',assistant_coach2_email:'m.a.garcia@msmary.edu'},
+  {name:'Sacred Heart',conference:'NEC',division:'D1',head_coach_email:'anzevuia@sacredheart.edu',assistant_coach1_email:'decimaj@sacredheart.edu',assistant_coach2_email:'deoliveirap@sacredheart.edu'},
+  {name:'St. Francis University',conference:'NEC',division:'D1',head_coach_email:'mkaiser@francis.edu',assistant_coach1_email:'rstewart@francis.edu'},
+  // PAC-12
+  {name:'Cal Berkeley',conference:'PAC-12',division:'D1',head_coach_email:'calsoccer@berkeley.edu',assistant_coach1_email:'ricardo.gutierrez@berkeley.edu',assistant_coach2_email:'jake.wilson@berkeley.edu'},
+  {name:'Oregon State',conference:'PAC-12',division:'D1',head_coach_email:'jarred.brookins@oregonstate.edu',assistant_coach1_email:'adrian.molinadiaz@oregonstate.edu'},
+  {name:'San Diego State',conference:'PAC-12',division:'D1',head_coach_email:'rhopkins2@sdsu.edu',assistant_coach1_email:'caguilar3@sdsu.edu',assistant_coach2_email:'adubois@sdsu.edu'},
+  {name:'Stanford',conference:'PAC-12',division:'D1',head_coach_email:'smsoccer@stanford.edu'},
+  {name:'UCLA',conference:'PAC-12',division:'D1',head_coach_email:'msoccer@athletics.ucla.edu'},
+  {name:'Washington',conference:'PAC-12',division:'D1',head_coach_email:'huskysoccer@uw.edu',assistant_coach1_email:'rjreece@uw.edu',assistant_coach2_email:'markcoll@uw.edu'},
+  // Patriot
+  {name:'American University',conference:'Patriot',division:'D1',head_coach_email:'samol@american.edu',assistant_coach1_email:'mehlertp@american.edu',assistant_coach2_email:'weidman@american.edu'},
+  {name:'Army West Point',conference:'Patriot',division:'D1',head_coach_email:'Brian.Plotkin@westpoint.edu',assistant_coach1_email:'jonathan.delano@westpoint.edu',assistant_coach2_email:'christopher.koch@westpoint.edu'},
+  {name:'Boston University',conference:'Patriot',division:'D1',head_coach_email:'knylen@bu.edu',assistant_coach1_email:'patlopez@bu.edu',assistant_coach2_email:'jblase@bu.edu'},
+  {name:'Bucknell',conference:'Patriot',division:'D1',head_coach_email:'db071@bucknell.edu',assistant_coach1_email:'jmp068@bucknell.edu',assistant_coach2_email:'mt041@bucknell.edu'},
+  {name:'Colgate',conference:'Patriot',division:'D1',head_coach_email:'eronning@colgate.edu',assistant_coach1_email:'rabrownstaff@colgate.edu',assistant_coach2_email:'tstanton@colgate.edu'},
+  {name:'Holy Cross',conference:'Patriot',division:'D1',head_coach_email:'mabrown1@holycross.edu',assistant_coach1_email:'acaprininegraodelima@holycross.edu',assistant_coach2_email:'gminiaci@holycross.edu'},
+  {name:'Lafayette',conference:'Patriot',division:'D1',head_coach_email:'bohnd@lafayette.edu',assistant_coach1_email:'robingab@lafayette.edu',assistant_coach2_email:'baldem@lafayette.edu'},
+  {name:'Lehigh',conference:'Patriot',division:'D1',head_coach_email:'lehighmsoccer@lehigh.edu',assistant_coach1_email:'reh311@lehigh.edu',assistant_coach2_email:'jsb522@lehigh.edu'},
+  {name:'Loyola Maryland',conference:'Patriot',division:'D1',head_coach_email:'sgnichols@loyola.edu',assistant_coach1_email:'jndarvill@loyola.edu',assistant_coach2_email:'jhaislip@loyola.edu'},
+  {name:'Navy',conference:'Patriot',division:'D1',head_coach_email:'odonohue@usna.edu',assistant_coach1_email:'risbridg@usna.edu',assistant_coach2_email:'bcwilson@usna.edu'},
+  // SOCON
+  {name:'Belmont',conference:'SOCON',division:'D1',head_coach_email:'menssoccer@belmont.edu',assistant_coach1_email:'cam.olson@belmont.edu',assistant_coach2_email:'anthony.torres@belmont.edu'},
+  {name:'ETSU',conference:'SOCON',division:'D1',head_coach_email:'vitala1@mail.etsu.edu',assistant_coach1_email:'gomiss@mail.etsu.edu'},
+  {name:'Furman',conference:'SOCON',division:'D1',head_coach_email:'Doug.Allison@Furman.edu',assistant_coach1_email:'Bret.Boulware@Furman.edu',assistant_coach2_email:'Brandon.Tucker@Furman.edu'},
+  {name:'Mercer',conference:'SOCON',division:'D1',head_coach_email:'Menssoccer@mercer.edu',assistant_coach1_email:'Davey_rj@mercer.edu'},
+  {name:'UNCG',conference:'SOCON',division:'D1',head_coach_email:'msoccer@uncg.edu'},
+  {name:'Wofford',conference:'SOCON',division:'D1',head_coach_email:'tysonje1@wofford.edu',assistant_coach1_email:'finottina@wofford.edu'},
+  {name:'VMI',conference:'SOCON',division:'D1',head_coach_email:'regannj@vmi.edu',assistant_coach1_email:'wyrickjd@vmi.edu'},
+  // Ivy
+  {name:'Brown',conference:'Ivy',division:'D1',head_coach_email:'msoccer@brown.edu',assistant_coach1_email:'steven_tekesky@brown.edu',assistant_coach2_email:'mark_waterman1@brown.edu'},
+  {name:'Columbia',conference:'Ivy',division:'D1',head_coach_email:'columbiamsoccer@gmail.com'},
+  {name:'Cornell',conference:'Ivy',division:'D1',head_coach_email:'msoccer@cornell.edu'},
+  {name:'Dartmouth',conference:'Ivy',division:'D1',head_coach_email:'Adegboyega.W.Oshoniyi@Dartmouth.edu',assistant_coach1_email:'matty.evans@dartmouth.edu'},
+  {name:'Harvard',conference:'Ivy',division:'D1',head_coach_email:'msoccer@fas.harvard.edu',assistant_coach1_email:'jciuffetelli@fas.harvard.edu'},
+  {name:'Penn',conference:'Ivy',division:'D1',head_coach_email:'brgill@upenn.edu',assistant_coach1_email:'dematteo@upenn.edu',assistant_coach2_email:'mpop@upenn.edu'},
+  {name:'Princeton',conference:'Ivy',division:'D1',head_coach_email:'jimbarlo@princeton.edu',assistant_coach1_email:'stotten@princeton.edu',assistant_coach2_email:'smaira@princeton.edu'},
+  {name:'Yale',conference:'Ivy',division:'D1',head_coach_email:'kylie.stannard@yale.edu',assistant_coach1_email:'trevor.banks@yale.edu',assistant_coach2_email:'garfield.robinson@yale.edu'},
+  // Sun Belt
+  {name:'Coastal Carolina',conference:'Sun Belt',division:'D1',head_coach_email:'sdocking@coastal.edu',assistant_coach1_email:'cfidler@coastal.edu',assistant_coach2_email:'jfajardo@coastal.edu'},
+  {name:'Georgia Southern',conference:'Sun Belt',division:'D1',head_coach_email:'gsumenssoccer@georgiasouthern.edu',assistant_coach1_email:'jamessmith@georgiasouthern.edu'},
+  {name:'Georgia State',conference:'Sun Belt',division:'D1',head_coach_email:'bsurrency@gsu.edu',assistant_coach1_email:'dmohsen@gsu.edu',assistant_coach2_email:'loesterle1@gsu.edu'},
+  {name:'Kentucky',conference:'Sun Belt',division:'D1',head_coach_email:'johan.cedergren@uky.edu',assistant_coach1_email:'ryan.zinkhan@uky.edu'},
+  {name:'Marshall',conference:'Sun Belt',division:'D1',head_coach_email:'msoccer@marshall.edu',assistant_coach1_email:'faga@marshall.edu',assistant_coach2_email:'sniatecki@marshall.edu'},
+  {name:'Old Dominion',conference:'Sun Belt',division:'D1',head_coach_email:'jmcvea@odu.edu',assistant_coach1_email:'n4jones@odu.edu',assistant_coach2_email:'jospence@odu.edu'},
+  {name:'South Carolina',conference:'Sun Belt',division:'D1',head_coach_email:'SCMensSoccer@mailbox.sc.edu'},
+  {name:'West Virginia',conference:'Sun Belt',division:'D1',head_coach_email:'Andy.Wright@mail.wvu.edu',assistant_coach1_email:'Nick.Noble@mail.wvu.edu',assistant_coach2_email:'nolan.sheldon@mail.wvu.edu'},
+  // Summit
+  {name:'Denver',conference:'Summit',division:'D1',head_coach_email:'denversoccer@du.edu',assistant_coach1_email:'brad.franks@du.edu',assistant_coach2_email:'jose.arenas@du.edu'},
+  {name:'Eastern Illinois',conference:'Summit',division:'D1',head_coach_email:'msoccer@eiu.edu',assistant_coach1_email:'pballen@eiu.edu'},
+  {name:'UMKC',conference:'Summit',division:'D1',head_coach_email:'ryanpore@umkc.edu',assistant_coach1_email:'rafaelmartinezrodriguez@umkc.edu'},
+  {name:'Lindenwood',conference:'Summit',division:'D1',assistant_coach1_email:'nhubert@lindenwood.edu',assistant_coach2_email:'ekrause.vol@lindenwood.edu'},
+  {name:'Omaha',conference:'Summit',division:'D1',head_coach_email:'ddowling@omavs.com',assistant_coach1_email:'jmcreynolds@omavs.com'},
+  {name:'Oral Roberts',conference:'Summit',division:'D1',head_coach_email:'rybush@oru.edu',assistant_coach1_email:'LColeman@oru.edu',assistant_coach2_email:'anrossi@oru.edu'},
+  {name:'Southern Indiana',conference:'Summit',division:'D1',head_coach_email:'mjsantoro@usi.edu',assistant_coach1_email:'rrbennett@usi.edu',assistant_coach2_email:'earamirez@usi.edu'},
+  {name:'St. Thomas',conference:'Summit',division:'D1',head_coach_email:'menssoccer@stthomas.edu',assistant_coach1_email:'crop3219@stthomas.edu',assistant_coach2_email:'fier4609@stthomas.edu'},
+  {name:'Western Illinois',conference:'Summit',division:'D1',head_coach_email:'EP-Johnson@wiu.edu',assistant_coach1_email:'kc-owen@wiu.edu'},
+  // WAC
+  {name:'Air Force',conference:'WAC',division:'D1'},
+  {name:'Cal Baptist',conference:'WAC',division:'D1',head_coach_email:'cmichaelson@calbaptist.edu',assistant_coach1_email:'stmarshall@calbaptist.edu',assistant_coach2_email:'msoccer@calbaptist.edu'},
+  {name:'Utah Tech',conference:'WAC',division:'D1',head_coach_email:'jonny.broadhead@utahtech.edu',assistant_coach1_email:'zac.hales@utahtech.edu',assistant_coach2_email:'nick.vorberg@utahtech.edu'},
+  {name:'Grand Canyon',conference:'WAC',division:'D1',head_coach_email:'george.kiefer@gcu.edu',assistant_coach1_email:'leo.chappel@gcu.edu',assistant_coach2_email:'andrew.madero@gcu.edu'},
+  {name:'Houston Baptist',conference:'WAC',division:'D1',head_coach_email:'rpratt@hbu.edu',assistant_coach1_email:'amassen@hbu.edu'},
+  {name:'San Jose State',conference:'WAC',division:'D1',head_coach_email:'simon.tobin@sjsu.edu',assistant_coach1_email:'jesus.a.sanchez@sjsu.edu',assistant_coach2_email:'jamie.reid@sjsu.edu'},
+  {name:'Seattle University',conference:'WAC',division:'D1',head_coach_email:'daligcon@seattleu.edu',assistant_coach1_email:'jfarrell2@seattleu.edu',assistant_coach2_email:'bhopp@seattleu.edu'},
+  {name:'UIW',conference:'WAC',division:'D1',head_coach_email:'rlara@uiwtx.edu',assistant_coach1_email:'muse@uiwtx.edu'},
+  {name:'UNLV',conference:'WAC',division:'D1',head_coach_email:'bj.craig@unlv.edu',assistant_coach1_email:'david.casper@unlv.edu',assistant_coach2_email:'micah.craig@unlv.edu'},
+  {name:'Utah Valley',conference:'WAC',division:'D1',assistant_coach1_email:'michael.chesler@uvu.edu',assistant_coach2_email:'Ty.OConnor@uvu.edu'},
+  {name:'UTRGV',conference:'WAC',division:'D1',head_coach_email:'bryheem.hancock@utrgv.edu',assistant_coach1_email:'sheldon.cipriani@utrgv.edu',assistant_coach2_email:'victor.medellin01@utrgv.edu'},
+  // WCC
+  {name:'Gonzaga',conference:'WCC',division:'D1',head_coach_email:'lewisa@gonzaga.edu',assistant_coach1_email:'mcgaughey@gonzaga.edu',assistant_coach2_email:'michaelsonc@gonzaga.edu'},
+  {name:'Loyola Marymount',conference:'WCC',division:'D1',head_coach_email:'kyle.schmid@lmu.edu',assistant_coach1_email:'msoccer@lmu.edu'},
+  {name:'Pacific',conference:'WCC',division:'D1',head_coach_email:'areeves@pacific.edu',assistant_coach1_email:'Blanoye@pacific.edu'},
+  {name:'Portland',conference:'WCC',division:'D1',head_coach_email:'carlinvo@up.edu',assistant_coach1_email:'deemer@up.edu',assistant_coach2_email:'simon@up.edu'},
+  {name:'San Diego',conference:'WCC',division:'D1',head_coach_email:'brianq@sandiego.edu',assistant_coach1_email:'michaelnicholson@sandiego.edu',assistant_coach2_email:'fsanfilippo@sandiego.edu'},
+  {name:'San Francisco',conference:'WCC',division:'D1',head_coach_email:'cbrown14@usfca.edu',assistant_coach1_email:'sreynolds1@usfca.edu',assistant_coach2_email:'rrix@usfca.edu'},
+  {name:'Santa Clara',conference:'WCC',division:'D1',head_coach_email:'msoccer@scu.edu'},
+  {name:"Saint Mary's",conference:'WCC',division:'D1',head_coach_email:'acooper@stmarys-ca.edu',assistant_coach1_email:'srn6@stmarys-ca.edu',assistant_coach2_email:'rdp2@stmarys-ca.edu'},
+];
+
+async function seedSchools() {
+  const btn = document.querySelector('.btn-seed');
+  btn.textContent = 'seeding...'; btn.disabled = true;
+  const existing = state.schools.map(s => s.name.toLowerCase());
+  const toInsert = D1_SCHOOLS.filter(s => !existing.includes(s.name.toLowerCase()));
+  if (!toInsert.length) { toast('all d1 schools already seeded'); btn.textContent = 'seed d1 schools'; btn.disabled = false; return; }
+  const chunks = [];
+  for (let i = 0; i < toInsert.length; i += 50) chunks.push(toInsert.slice(i, i + 50));
+  for (const chunk of chunks) {
+    const { error } = await sb.from('schools').insert(chunk);
+    if (error) { toast(error.message, true); btn.textContent = 'seed d1 schools'; btn.disabled = false; return; }
+  }
+  toast(`seeded ${toInsert.length} schools`);
+  btn.textContent = 'seed d1 schools'; btn.disabled = false;
+  loadSchools();
+}
+
+// ===== TOAST =====
+function toast(msg, isErr = false) {
+  const el = document.createElement('div');
+  el.className = 'toast-item' + (isErr ? ' err' : '');
+  el.textContent = msg;
+  document.getElementById('toast').appendChild(el);
+  setTimeout(() => el.remove(), 3500);
+}
+</script>
+</body>
+</html>
