@@ -249,6 +249,8 @@ tbody td{padding:12px 12px;font-size:.78rem;color:var(--cream);vertical-align:mi
         <div><div class="panel-title">schools database</div><div class="panel-subtitle" id="schools-count">loading...</div></div>
         <div class="panel-actions">
           <button class="btn-seed" onclick="seedSchools()">seed d1 schools</button>
+          <button class="btn-seed" onclick="seedD2Schools()">seed d2 schools</button>
+          <button class="btn-seed" onclick="seedD3Schools()">seed d3 schools</button>
           <button class="btn-add" onclick="openModal('school')">+ add school</button>
         </div>
       </div>
@@ -357,6 +359,11 @@ tbody td{padding:12px 12px;font-size:.78rem;color:var(--cream);vertical-align:mi
       </div>
       <div class="filters">
         <input class="filter-input" type="text" placeholder="search school..." id="stf-search" oninput="renderStats()">
+        <select class="filter-input" id="stf-div" onchange="renderStats()">
+          <option value="">all divisions</option>
+          <option>D1</option><option>D2</option><option>D3</option>
+        </select>
+        <input class="filter-input" type="text" placeholder="conference..." id="stf-conf" oninput="renderStats()">
         <input class="filter-input" type="text" placeholder="season (e.g. 2024)" id="stf-season" oninput="renderStats()">
       </div>
       <div class="table-wrap">
@@ -374,22 +381,32 @@ tbody td{padding:12px 12px;font-size:.78rem;color:var(--cream);vertical-align:mi
     <!-- BENCHMARKS TAB -->
     <div class="tab-panel" id="tab-benchmarks">
       <div class="panel-header">
-        <div><div class="panel-title">academic benchmarks</div><div class="panel-subtitle">gpa / sat / toefl thresholds per school</div></div>
+        <div><div class="panel-title">academic benchmarks</div><div class="panel-subtitle" id="benchmarks-count">loading...</div></div>
         <div class="panel-actions">
           <button class="btn-add" onclick="openModal('benchmark')">+ add benchmark</button>
         </div>
       </div>
       <div class="filters">
         <input class="filter-input" type="text" placeholder="search school..." id="bf-search" oninput="renderBenchmarks()">
+        <select class="filter-input" id="bf-div" onchange="renderBenchmarks()">
+          <option value="">all divisions</option>
+          <option>D1</option><option>D2</option><option>D3</option>
+        </select>
+        <input class="filter-input" type="text" placeholder="conference..." id="bf-conf" oninput="renderBenchmarks()">
+        <select class="filter-input" id="bf-status" onchange="renderBenchmarks()">
+          <option value="">all schools</option>
+          <option value="has">has benchmark</option>
+          <option value="missing">missing benchmark</option>
+        </select>
       </div>
       <div class="table-wrap">
         <table>
           <thead><tr>
-            <th>school</th><th>min gpa</th><th>min sat</th><th>min toefl</th><th>avg gpa accepted</th><th>notes</th><th></th>
+            <th>school</th><th>div</th><th>conference</th><th>min gpa</th><th>min sat</th><th>min toefl</th><th>avg gpa</th><th>notes</th><th></th>
           </tr></thead>
           <tbody id="benchmarks-body"></tbody>
         </table>
-        <div class="empty-state" id="benchmarks-empty" style="display:none">no benchmarks logged yet.</div>
+        <div class="empty-state" id="benchmarks-empty" style="display:none">no schools found.</div>
       </div>
     </div>
 
@@ -403,6 +420,11 @@ tbody td{padding:12px 12px;font-size:.78rem;color:var(--cream);vertical-align:mi
       </div>
       <div class="filters">
         <input class="filter-input" type="text" placeholder="search school..." id="schf-search" oninput="renderScholarships()">
+        <select class="filter-input" id="schf-div" onchange="renderScholarships()">
+          <option value="">all divisions</option>
+          <option>D1</option><option>D2</option><option>D3</option>
+        </select>
+        <input class="filter-input" type="text" placeholder="conference..." id="schf-conf" oninput="renderScholarships()">
       </div>
       <div class="table-wrap">
         <table>
@@ -464,7 +486,7 @@ const sb = createClient(
 );
 
 // ===== STATE =====
-let state = { user: null, tab: 'schools', schools: [], players: [], pipeline: [], stats: [], benchmarks: [], scholarships: [], events: [], editing: null, modalType: null };
+let state = { user: null, tab: 'schools', schools: [], players: [], pipeline: [], stats: [], benchmarks: [], scholarships: [], events: [], editing: null, modalType: null, preSchoolId: null };
 
 // ===== AUTH =====
 async function doLogin() {
@@ -652,7 +674,7 @@ function renderPipeline() {
 
 // ===== STATS =====
 async function loadStats() {
-  const { data } = await sb.from('team_stats').select('*, schools(name)').order('updated_at', { ascending: false });
+  const { data } = await sb.from('team_stats').select('*, schools(name,division,conference)').order('updated_at', { ascending: false });
   state.stats = data || [];
   renderStats();
 }
@@ -660,9 +682,13 @@ async function loadStats() {
 function renderStats() {
   const search = document.getElementById('stf-search').value.toLowerCase();
   const season = document.getElementById('stf-season').value;
+  const div    = document.getElementById('stf-div').value;
+  const conf   = document.getElementById('stf-conf').value.toLowerCase();
   let rows = state.stats.filter(r => {
     if (search && !(r.schools?.name||'').toLowerCase().includes(search)) return false;
     if (season && !(r.season||'').includes(season)) return false;
+    if (div && r.schools?.division !== div) return false;
+    if (conf && !(r.schools?.conference||'').toLowerCase().includes(conf)) return false;
     return true;
   });
   const tbody = document.getElementById('stats-body');
@@ -694,36 +720,66 @@ async function loadBenchmarks() {
 
 function renderBenchmarks() {
   const search = document.getElementById('bf-search').value.toLowerCase();
-  let rows = state.benchmarks.filter(r => !(search && !(r.schools?.name||'').toLowerCase().includes(search)));
+  const div    = document.getElementById('bf-div').value;
+  const conf   = document.getElementById('bf-conf').value.toLowerCase();
+  const status = document.getElementById('bf-status').value;
+
+  let schools = state.schools.filter(s => {
+    if (search && !s.name.toLowerCase().includes(search)) return false;
+    if (div && s.division !== div) return false;
+    if (conf && !(s.conference||'').toLowerCase().includes(conf)) return false;
+    const b = state.benchmarks.find(bm => bm.school_id === s.id);
+    if (status === 'has' && !b) return false;
+    if (status === 'missing' && b) return false;
+    return true;
+  });
+
   const tbody = document.getElementById('benchmarks-body');
   const empty = document.getElementById('benchmarks-empty');
-  if (!rows.length) { tbody.innerHTML = ''; empty.style.display = 'block'; return; }
+  const countEl = document.getElementById('benchmarks-count');
+  const withData = state.benchmarks.length;
+  if (countEl) countEl.textContent = `${schools.length} schools shown · ${withData} with benchmark data`;
+
+  if (!schools.length) { tbody.innerHTML = ''; empty.style.display = 'block'; return; }
   empty.style.display = 'none';
-  tbody.innerHTML = rows.map(r => `
-    <tr>
-      <td style="font-weight:600">${r.schools?.name||'—'}</td>
-      <td>${r.min_gpa||'—'}</td>
-      <td>${r.min_sat||'—'}</td>
-      <td>${r.min_toefl||'—'}</td>
-      <td>${r.avg_gpa_accepted||'—'}</td>
-      <td style="font-size:.72rem;color:var(--cream-dim)">${r.notes||'—'}</td>
+
+  tbody.innerHTML = schools.map(s => {
+    const b = state.benchmarks.find(bm => bm.school_id === s.id);
+    const dc = s.division === 'D1' ? 'var(--d1)' : s.division === 'D2' ? 'var(--d2)' : 'var(--d3)';
+    return `<tr>
+      <td style="font-weight:600">${s.name}</td>
+      <td><span style="color:${dc};font-size:.7rem;font-weight:700">${s.division||'—'}</span></td>
+      <td style="font-size:.72rem;color:var(--cream-dim)">${s.conference||'—'}</td>
+      <td>${b?.min_gpa??'—'}</td>
+      <td>${b?.min_sat??'—'}</td>
+      <td>${b?.min_toefl??'—'}</td>
+      <td>${b?.avg_gpa_accepted??'—'}</td>
+      <td style="font-size:.72rem;color:var(--cream-dim);max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${b?.notes||'—'}</td>
       <td><div class="row-actions">
-        <button class="btn-icon" onclick="openModal('benchmark','${r.id}')">edit</button>
-        <button class="btn-icon del" onclick="deleteRow('academic_benchmarks','${r.id}',loadBenchmarks)">del</button>
+        <button class="btn-icon" onclick="openBenchmarkForSchool('${s.id}')">${b ? 'edit' : 'add'}</button>
+        ${b ? `<button class="btn-icon del" onclick="deleteRow('academic_benchmarks','${b.id}',loadBenchmarks)">del</button>` : ''}
       </div></td>
-    </tr>`).join('');
+    </tr>`;
+  }).join('');
 }
 
 // ===== SCHOLARSHIPS =====
 async function loadScholarships() {
-  const { data } = await sb.from('scholarships').select('*, schools(name)').order('last_verified', { ascending: false });
+  const { data } = await sb.from('scholarships').select('*, schools(name,division,conference)').order('last_verified', { ascending: false });
   state.scholarships = data || [];
   renderScholarships();
 }
 
 function renderScholarships() {
   const search = document.getElementById('schf-search').value.toLowerCase();
-  let rows = state.scholarships.filter(r => !(search && !(r.schools?.name||'').toLowerCase().includes(search)));
+  const div    = document.getElementById('schf-div').value;
+  const conf   = document.getElementById('schf-conf').value.toLowerCase();
+  let rows = state.scholarships.filter(r => {
+    if (search && !(r.schools?.name||'').toLowerCase().includes(search)) return false;
+    if (div && r.schools?.division !== div) return false;
+    if (conf && !(r.schools?.conference||'').toLowerCase().includes(conf)) return false;
+    return true;
+  });
   const tbody = document.getElementById('scholarships-body');
   const empty = document.getElementById('scholarships-empty');
   if (!rows.length) { tbody.innerHTML = ''; empty.style.display = 'block'; return; }
@@ -793,7 +849,13 @@ function openModal(type, id = null) {
   document.getElementById('modal-overlay').classList.add('show');
 }
 
-function closeModal() { document.getElementById('modal-overlay').classList.remove('show'); state.editing = null; state.modalType = null; }
+function closeModal() { document.getElementById('modal-overlay').classList.remove('show'); state.editing = null; state.modalType = null; state.preSchoolId = null; }
+
+function openBenchmarkForSchool(schoolId) {
+  const b = state.benchmarks.find(bm => bm.school_id === schoolId);
+  state.preSchoolId = schoolId;
+  openModal('benchmark', b ? b.id : null);
+}
 function closeModalOnBg(e) { if (e.target === document.getElementById('modal-overlay')) closeModal(); }
 
 function getModalForm(type, id) {
@@ -805,7 +867,7 @@ function getModalForm(type, id) {
   const sch    = id ? state.scholarships.find(s => s.id === id) : null;
   const ev     = id ? state.events.find(e => e.id === id) : null;
 
-  const schoolOpts = state.schools.map(s => `<option value="${s.id}" ${(pipe?.school_id===s.id||stat?.school_id===s.id||bench?.school_id===s.id||sch?.school_id===s.id)?'selected':''}>${s.name}</option>`).join('');
+  const schoolOpts = state.schools.map(s => `<option value="${s.id}" ${(pipe?.school_id===s.id||stat?.school_id===s.id||bench?.school_id===s.id||sch?.school_id===s.id||state.preSchoolId===s.id)?'selected':''}>${s.name} (${s.division||''})</option>`).join('');
   const playerOpts = state.players.map(p => `<option value="${p.id}" ${pipe?.player_id===p.id?'selected':''}>${p.full_name}</option>`).join('');
 
   if (type === 'school') return `
@@ -1255,6 +1317,729 @@ const D1_SCHOOLS = [
   {name:'Santa Clara',conference:'WCC',division:'D1',head_coach_email:'msoccer@scu.edu'},
   {name:"Saint Mary's",conference:'WCC',division:'D1',head_coach_email:'acooper@stmarys-ca.edu',assistant_coach1_email:'srn6@stmarys-ca.edu',assistant_coach2_email:'rdp2@stmarys-ca.edu'},
 ];
+
+const D2_SCHOOLS = [
+  // Conference Carolinas (14)
+  {name:'Shorter University',conference:'Conference Carolinas',division:'D2',head_coach_email:'kcooke@shorter.edu'},
+  {name:'Francis Marion University',conference:'Conference Carolinas',division:'D2',head_coach_email:'Luis.Rincon@fmarion.edu',assistant_coach1_email:'kevin.martin@fmarion.edu',assistant_coach2_email:'pablo.terminiello@fmarion.edu'},
+  {name:'Converse College',conference:'Conference Carolinas',division:'D2',head_coach_email:'rob.miller@converse.edu',assistant_coach1_email:'asher.quave@converse.edu',assistant_coach2_email:'david.windmiller@converse.edu'},
+  {name:'Young Harris College',conference:'Conference Carolinas',division:'D2',head_coach_email:'dcgrey@yhc.edu',assistant_coach1_email:'gscott@yhc.edu'},
+  {name:'Emmanuel College',conference:'Conference Carolinas',division:'D2',head_coach_email:'tim.starr@ec.edu',assistant_coach1_email:'Msoccer@ec.edu'},
+  {name:'Barton College',conference:'Conference Carolinas',division:'D2',head_coach_email:'lquaiattiantonelli@barton.edu',assistant_coach1_email:'rcribeiro@barton.edu'},
+  {name:'Belmont Abbey College',conference:'Conference Carolinas',division:'D2',head_coach_email:'johnkeating@bac.edu',assistant_coach1_email:'patrickkibler@bac.edu',assistant_coach2_email:'austingunnels@bac.edu'},
+  {name:'Chowan University',conference:'Conference Carolinas',division:'D2',head_coach_email:'whallc@chowan.edu',assistant_coach1_email:'jebaker@chowan.edu',assistant_coach2_email:'radearle0908@chowan.edu'},
+  {name:'Lees-McRae College',conference:'Conference Carolinas',division:'D2',head_coach_email:'mortont@lmc.edu',assistant_coach1_email:'mortonc@lmc.edu'},
+  {name:'University of Mount Olive',conference:'Conference Carolinas',division:'D2',head_coach_email:'ispooner@umo.edu',assistant_coach1_email:'cguzman-cruz@umo.edu'},
+  {name:'Southern Wesleyan University',conference:'Conference Carolinas',division:'D2',head_coach_email:'jfernandez@swu.edu',assistant_coach1_email:'jrodriguez@swu.edu'},
+  {name:'Erskine College',conference:'Conference Carolinas',division:'D2',head_coach_email:'chisolm@erskine.edu',assistant_coach1_email:'boeckstaens@erskine.edu'},
+  {name:'North Greenville University',conference:'Conference Carolinas',division:'D2',head_coach_email:'andrew.aulick@ngu.edu',assistant_coach1_email:'stephen.fite@ngu.edu'},
+  {name:'King University',conference:'Conference Carolinas',division:'D2',head_coach_email:'mbell@king.edu',assistant_coach1_email:'lsharp@king.edu',assistant_coach2_email:'mosorio1@king.edu'},
+  // Gulf South Conference (12)
+  {name:'University of West Florida',conference:'Gulf South Conference',division:'D2',head_coach_email:'belliot@uwf.edu',assistant_coach1_email:'flawall@uwf.edu'},
+  {name:'University of Alabama Huntsville',conference:'Gulf South Conference',division:'D2',head_coach_email:'jrc0045@uah.edu',assistant_coach1_email:'Tate.Dean@uah.edu'},
+  {name:'Delta State University',conference:'Gulf South Conference',division:'D2',head_coach_email:'atjackman@deltastate.edu',assistant_coach1_email:'ohoward@deltastate.edu'},
+  {name:'Lee University',conference:'Gulf South Conference',division:'D2',head_coach_email:'dpotteiger@leeuniversity.edu',assistant_coach1_email:'dbrandt@leeuniversity.edu'},
+  {name:'University of Montevallo',conference:'Gulf South Conference',division:'D2',head_coach_email:'bdietterle@montevallo.edu',assistant_coach1_email:'hrivera2@montevallo.edu'},
+  {name:'Mississippi College',conference:'Gulf South Conference',division:'D2',head_coach_email:'kjohns@mc.edu',assistant_coach1_email:'ofconnelly@mc.edu'},
+  {name:'Auburn University at Montgomery',conference:'Gulf South Conference',division:'D2',head_coach_email:'mthorne@aum.edu',assistant_coach1_email:'aarriaga@aum.edu'},
+  {name:'University of West Alabama',conference:'Gulf South Conference',division:'D2',head_coach_email:'rnelson@uwa.edu',assistant_coach1_email:'hroberts@uwa.edu'},
+  {name:'Spring Hill College',conference:'Gulf South Conference',division:'D2',head_coach_email:'creynolds@shc.edu',assistant_coach1_email:'amarriel@shc.edu'},
+  {name:'Christian Brothers University',conference:'Gulf South Conference',division:'D2',head_coach_email:'ecrehan@cbu.edu',assistant_coach1_email:'dbrown49@cbu.edu',assistant_coach2_email:'jhogan1@cbu.edu'},
+  {name:'Trevecca Nazarene University',conference:'Gulf South Conference',division:'D2',head_coach_email:'dleavy@trevecca.edu',assistant_coach1_email:'SCronin@trevecca.edu',assistant_coach2_email:'ZEpolk@trevecca.edu'},
+  {name:'Union University',conference:'Gulf South Conference',division:'D2',head_coach_email:'scox@uu.edu',assistant_coach1_email:'cyoung@uu.edu'},
+  // Independent D2 (4)
+  {name:'Salem University',conference:'Independent',division:'D2',head_coach_email:'greg.gilmore@salemu.edu'},
+  {name:'Shaw University',conference:'Independent',division:'D2',head_coach_email:'randy.mcclure@shawu.edu'},
+  {name:'University of Puerto Rico-Bayamon',conference:'Independent',division:'D2'},
+  {name:'University of Texas at Dallas',conference:'Independent',division:'D2',head_coach_email:'jason.hirsch@utdallas.edu',assistant_coach1_email:'jude.anuwe@utdallas.edu'},
+  // Lone Star Conference (11)
+  {name:"St. Mary's University",conference:'Lone Star Conference',division:'D2',head_coach_email:'jclifford@stmarytx.edu',assistant_coach1_email:'gtucker4@stmarytx.edu',assistant_coach2_email:'dcresto@stmarytx.edu'},
+  {name:'Dallas Baptist University',conference:'Lone Star Conference',division:'D2',head_coach_email:'jjobe@dbu.edu',assistant_coach1_email:'paulh@dbu.edu'},
+  {name:'St. Edwards University',conference:'Lone Star Conference',division:'D2',head_coach_email:'briany@stedwards.edu',assistant_coach1_email:'cmille13@stedwards.edu'},
+  {name:'Midwestern State University',conference:'Lone Star Conference',division:'D2',head_coach_email:'michael.meachum@msutexas.edu',assistant_coach1_email:'patrick.fitzgerald@msutexas.edu'},
+  {name:'Oklahoma Christian University',conference:'Lone Star Conference',division:'D2',head_coach_email:'neil.hilton@oc.edu',assistant_coach1_email:'allan.sorato@oc.edu',assistant_coach2_email:'artur.gomes@oc.edu'},
+  {name:'Texas A&M International University',conference:'Lone Star Conference',division:'D2',head_coach_email:'carias@tamiu.edu',assistant_coach1_email:'victor.olivares@tamiu.edu'},
+  {name:'Texas A&M University-Commerce',conference:'Lone Star Conference',division:'D2'},
+  {name:'University of Texas at Tyler',conference:'Lone Star Conference',division:'D2',head_coach_email:'menssoccer@uttyler.edu'},
+  {name:'Eastern New Mexico University',conference:'Lone Star Conference',division:'D2',head_coach_email:'portales.mens.soccer@enmu.edu',assistant_coach1_email:'alex.figueroa@enmu.edu'},
+  {name:'Lubbock Christian University',conference:'Lone Star Conference',division:'D2',head_coach_email:'Collin.Cone@lcu.edu',assistant_coach1_email:'Jonathan.Woods@LCU.edu',assistant_coach2_email:'Duvan.Canchila@Lcu.edu'},
+  {name:'Sul Ross State University',conference:'Lone Star Conference',division:'D2',head_coach_email:'bailey.guffin@sulross.edu'},
+  // Mountain East Conference (9)
+  {name:'University of Charleston',conference:'Mountain East Conference',division:'D2',head_coach_email:'danielsmee@ucwv.edu'},
+  {name:'Davis & Elkins College',conference:'Mountain East Conference',division:'D2',head_coach_email:'lewinm@dewv.edu',assistant_coach1_email:'brooksj2@dewv.edu'},
+  {name:'Point Park University',conference:'Mountain East Conference',division:'D2',head_coach_email:'cwilliams2@pointpark.edu'},
+  {name:'Frostburg State University',conference:'Mountain East Conference',division:'D2',head_coach_email:'kbyrnes@frostburg.edu',assistant_coach1_email:'twasley@frostburg.edu'},
+  {name:'Concord University',conference:'Mountain East Conference',division:'D2'},
+  {name:'West Liberty University',conference:'Mountain East Conference',division:'D2',head_coach_email:'sean.regan@westliberty.edu',assistant_coach1_email:'vkelly@westliberty.edu'},
+  {name:'West Virginia Wesleyan College',conference:'Mountain East Conference',division:'D2',head_coach_email:'francis.g@wvwc.edu'},
+  {name:'Wheeling University',conference:'Mountain East Conference',division:'D2',head_coach_email:'bregan@wheeling.edu',assistant_coach1_email:'mmartin012@cardinal.wheeling.edu'},
+  {name:'Notre Dame College',conference:'Mountain East Conference',division:'D2',head_coach_email:'cnolan@ndc.edu',assistant_coach1_email:'nfelician@ndc.edu',assistant_coach2_email:'psvihlik@ndc.edu'},
+  // East Coast Conference (9)
+  {name:'CUNY Queens College',conference:'East Coast Conference',division:'D2',head_coach_email:'frank.vertullo@qc.cuny.edu',assistant_coach1_email:'vincent.companion@qc.cuny.edu'},
+  {name:'Mercy College',conference:'East Coast Conference',division:'D2',head_coach_email:'pvelazquez@mercy.edu',assistant_coach1_email:'jgatti@mercy.edu',assistant_coach2_email:'trawsonpaz@mercy.edu'},
+  {name:'University of the District of Columbia',conference:'East Coast Conference',division:'D2',head_coach_email:'mlthompson@udc.edu',assistant_coach1_email:'benjamin.mortimer@udc.edu'},
+  {name:"D'Youville University",conference:'East Coast Conference',division:'D2',head_coach_email:'hallass@dyc.edu',assistant_coach1_email:'pedezerb@dyc.edu',assistant_coach2_email:'napierj@dyc.edu'},
+  {name:'Daemen University',conference:'East Coast Conference',division:'D2',head_coach_email:'bswan@daemen.edu',assistant_coach1_email:'pontus.lundin@daemen.edu'},
+  {name:'Molloy College',conference:'East Coast Conference',division:'D2',head_coach_email:'cmegaloudis@molloy.edu'},
+  {name:'Roberts Wesleyan University',conference:'East Coast Conference',division:'D2',head_coach_email:'reber_scott@roberts.edu'},
+  {name:'St. Thomas Aquinas College',conference:'East Coast Conference',division:'D2',head_coach_email:'esanchez@stac.edu',assistant_coach1_email:'gprepis@stac.edu'},
+  {name:'College of Staten Island CUNY',conference:'East Coast Conference',division:'D2',head_coach_email:'Donato.Curci@csi.cuny.edu',assistant_coach1_email:'michael.meagher@csi.cuny.edu'},
+  // Central Atlantic Collegiate Conference (12)
+  {name:'Post University',conference:'Central Atlantic Collegiate Conference',division:'D2',head_coach_email:'thaley@post.edu',assistant_coach1_email:'lfigueiredo@post.edu',assistant_coach2_email:'rdunnigan@post.edu'},
+  {name:'Chestnut Hill College',conference:'Central Atlantic Collegiate Conference',division:'D2',head_coach_email:'ZafiratosJ@chc.edu',assistant_coach1_email:'hochmanB@chc.edu'},
+  {name:'Goldey-Beacom College',conference:'Central Atlantic Collegiate Conference',division:'D2',head_coach_email:'dixonr@gbc.edu',assistant_coach1_email:'goodalmw@gbc.edu'},
+  {name:'Holy Family University',conference:'Central Atlantic Collegiate Conference',division:'D2',head_coach_email:'gmontag@holyfamily.edu',assistant_coach1_email:'mferretti@holyfamily.edu'},
+  {name:'Wilmington University',conference:'Central Atlantic Collegiate Conference',division:'D2',head_coach_email:'nick.d.papanicolas@wilmu.edu',assistant_coach1_email:'anthony.s.allison@wilmu.edu'},
+  {name:'Caldwell University',conference:'Central Atlantic Collegiate Conference',division:'D2',head_coach_email:'emarques@caldwell.edu',assistant_coach1_email:'Avelazquez@caldwell.edu'},
+  {name:'Thomas Jefferson University',conference:'Central Atlantic Collegiate Conference',division:'D2',head_coach_email:'jason.rocha@jefferson.edu',assistant_coach1_email:'thomas.stackhouse@jefferson.edu'},
+  {name:'Bloomfield College of Montclair State',conference:'Central Atlantic Collegiate Conference',division:'D2',head_coach_email:'sotog@montclair.edu'},
+  {name:'Georgian Court University',conference:'Central Atlantic Collegiate Conference',division:'D2',head_coach_email:'draso@georgian.edu',assistant_coach1_email:'rfitzpatrick@georgian.edu'},
+  {name:'Dominican University of New York',conference:'Central Atlantic Collegiate Conference',division:'D2',head_coach_email:'jordan.collver@duny.edu'},
+  {name:'University of Bridgeport',conference:'Central Atlantic Collegiate Conference',division:'D2',head_coach_email:'pdoneit@bridgeport.edu',assistant_coach1_email:'anhoward@bridgeport.edu'},
+  {name:'Felician University',conference:'Central Atlantic Collegiate Conference',division:'D2',head_coach_email:'LevineB@felician.edu',assistant_coach1_email:'WinningS@felician.edu'},
+  // Sunshine State Conference (11)
+  {name:'Barry University',conference:'Sunshine State Conference',division:'D2',head_coach_email:'pivanovic@barry.edu',assistant_coach1_email:'ibarriga@barry.edu'},
+  {name:'Rollins College',conference:'Sunshine State Conference',division:'D2',head_coach_email:'kbuckley@rollins.edu',assistant_coach1_email:'lboden@rollins.edu'},
+  {name:'Florida Institute of Technology',conference:'Sunshine State Conference',division:'D2',head_coach_email:'nrobinson@fit.edu',assistant_coach1_email:'rchan@fit.edu'},
+  {name:'Nova Southeastern University',conference:'Sunshine State Conference',division:'D2',head_coach_email:'mmcarthu@nova.edu',assistant_coach1_email:'zd113@nova.edu'},
+  {name:'Saint Leo University',conference:'Sunshine State Conference',division:'D2',head_coach_email:'brett.parker@saintleo.edu',assistant_coach1_email:'graham.brown@saintleo.edu'},
+  {name:'University of Tampa',conference:'Sunshine State Conference',division:'D2',head_coach_email:'abush@ut.edu',assistant_coach1_email:'mloregnard@ut.edu'},
+  {name:'Lynn University',conference:'Sunshine State Conference',division:'D2',head_coach_email:'jrootes@lynn.edu',assistant_coach1_email:'adesperito@lynn.edu'},
+  {name:'Eckerd College',conference:'Sunshine State Conference',division:'D2',head_coach_email:'ilettjp1@eckerd.edu'},
+  {name:'Embry-Riddle Aeronautical University Daytona Beach',conference:'Sunshine State Conference',division:'D2',head_coach_email:'balagued@erau.edu'},
+  {name:'Florida Southern College',conference:'Sunshine State Conference',division:'D2',head_coach_email:'aholmes@flsouthern.edu',assistant_coach1_email:'amoore6@flsouthern.edu'},
+  {name:'Palm Beach Atlantic University',conference:'Sunshine State Conference',division:'D2',head_coach_email:'lucas_martorana@pba.edu',assistant_coach1_email:'robert_tomlin@pba.edu'},
+  // Great Lakes Valley Conference (15)
+  {name:'Maryville University of St. Louis',conference:'Great Lakes Valley Conference',division:'D2',head_coach_email:'ahall26@maryville.edu',assistant_coach1_email:'rpeters2@maryville.edu'},
+  {name:'University of Illinois Springfield',conference:'Great Lakes Valley Conference',division:'D2',head_coach_email:'gshaw8@uis.edu',assistant_coach1_email:'jconw2@uis.edu'},
+  {name:'University of Indianapolis',conference:'Great Lakes Valley Conference',division:'D2',head_coach_email:'hallgm@uindy.edu',assistant_coach1_email:'boomk@uindy.edu'},
+  {name:'Lewis University',conference:'Great Lakes Valley Conference',division:'D2',head_coach_email:'fiffleev@lewisu.edu',assistant_coach1_email:'carlosbucio@lewisu.edu'},
+  {name:'McKendree University',conference:'Great Lakes Valley Conference',division:'D2',head_coach_email:'stgyllenborg@mckendree.edu',assistant_coach1_email:'jovin.grewal19@mckendree.edu'},
+  {name:'William Jewell College',conference:'Great Lakes Valley Conference',division:'D2',head_coach_email:'horne@william.jewell.edu'},
+  {name:'Quincy University',conference:'Great Lakes Valley Conference',division:'D2',head_coach_email:'carpemi@quincy.edu'},
+  {name:'Drury University',conference:'Great Lakes Valley Conference',division:'D2',head_coach_email:'btaylor03@drury.edu',assistant_coach1_email:'mcampbell015@drury.edu'},
+  {name:'University of Missouri-St. Louis',conference:'Great Lakes Valley Conference',division:'D2'},
+  {name:'Truman State University',conference:'Great Lakes Valley Conference',division:'D2',head_coach_email:'dcochran@truman.edu'},
+  {name:'Rockhurst University',conference:'Great Lakes Valley Conference',division:'D2',head_coach_email:'anthony.tocco@rockhurst.edu',assistant_coach1_email:'giorgio.antongirolami@rockhurst.edu'},
+  {name:'Missouri University of Science and Technology',conference:'Great Lakes Valley Conference',division:'D2',head_coach_email:'cummingsrc@mst.edu'},
+  {name:'Southwest Baptist University',conference:'Great Lakes Valley Conference',division:'D2',head_coach_email:'steve.bushre@sbuniv.edu',assistant_coach1_email:'diego.espino@sbuniv.edu'},
+  {name:'Upper Iowa University',conference:'Great Lakes Valley Conference',division:'D2',head_coach_email:'carlsonj@uiu.edu',assistant_coach1_email:'hernandezr70@uiu.edu'},
+  {name:'Lincoln University',conference:'Great Lakes Valley Conference',division:'D2',head_coach_email:'SamuelsO@lincolnu.edu'},
+  // Great Lakes Intercollegiate Athletic Conference (7)
+  {name:'Saginaw Valley State University',conference:'Great Lakes Intercollegiate Athletic Conference',division:'D2',head_coach_email:'lpbarrow@svsu.edu',assistant_coach1_email:'jeterry@svsu.edu',assistant_coach2_email:'rbruce12@svsu.edu'},
+  {name:'University of Wisconsin-Parkside',conference:'Great Lakes Intercollegiate Athletic Conference',division:'D2',head_coach_email:'zitzke@uwp.edu',assistant_coach1_email:'aguinaga@uwp.edu'},
+  {name:'Davenport University',conference:'Great Lakes Intercollegiate Athletic Conference',division:'D2',head_coach_email:'chris.hughes@davenport.edu',assistant_coach1_email:'stuart.collins@davenport.edu',assistant_coach2_email:'nic.baigrie@davenport.edu'},
+  {name:'Purdue University Northwest',conference:'Great Lakes Intercollegiate Athletic Conference',division:'D2',head_coach_email:'dunn74@pnw.edu',assistant_coach1_email:'jogarcia@pnw.edu'},
+  {name:'Saint Cloud State University',conference:'Great Lakes Intercollegiate Athletic Conference',division:'D2',head_coach_email:'sean.holmes@stcloudstate.edu',assistant_coach1_email:'vukota.mastilovic@go.stcloudstate.edu'},
+  {name:'Northern Michigan University',conference:'Great Lakes Intercollegiate Athletic Conference',division:'D2',head_coach_email:'afatovic@nmu.edu',assistant_coach1_email:'cvang@nmu.edu'},
+  {name:'Roosevelt University',conference:'Great Lakes Intercollegiate Athletic Conference',division:'D2',head_coach_email:'phoepp@roosevelt.edu'},
+  // California Collegiate Athletic Association (13)
+  {name:'California State University Dominguez Hills',conference:'California Collegiate Athletic Association',division:'D2',head_coach_email:'esoto@csudh.edu',assistant_coach1_email:'ptenorio@csudh.edu'},
+  {name:'California State University Los Angeles',conference:'California Collegiate Athletic Association',division:'D2',head_coach_email:'merush@calstatela.edu',assistant_coach1_email:'jjaussi2@calstatela.edu'},
+  {name:'California State Polytechnic University Pomona',conference:'California Collegiate Athletic Association',division:'D2',head_coach_email:'mjosullivan@cpp.edu',assistant_coach1_email:'joseortega@cpp.edu'},
+  {name:'California State University Stanislaus',conference:'California Collegiate Athletic Association',division:'D2',head_coach_email:'jpowell1@csustan.edu',assistant_coach1_email:'elopez18@csustan.edu'},
+  {name:'Sonoma State University',conference:'California Collegiate Athletic Association',division:'D2',head_coach_email:'ziemer@sonoma.edu'},
+  {name:'California State University San Bernardino',conference:'California Collegiate Athletic Association',division:'D2',head_coach_email:'joshua.hill@csusb.edu',assistant_coach1_email:'ediaz3@csusb.edu',assistant_coach2_email:'eperez5@csusb.edu'},
+  {name:'California State University Chico',conference:'California Collegiate Athletic Association',division:'D2',head_coach_email:'lrestrepo@csuchico.edu',assistant_coach1_email:'aswartz1@csuchico.edu'},
+  {name:'California State University East Bay',conference:'California Collegiate Athletic Association',division:'D2',head_coach_email:'michael.haswell@csueastbay.edu',assistant_coach1_email:'michael.hannon2@csueastbay.edu'},
+  {name:'California State Polytechnic University Humboldt',conference:'California Collegiate Athletic Association',division:'D2',head_coach_email:'mjosullivan@cpp.edu',assistant_coach1_email:'joseortega@cpp.edu'},
+  {name:'San Francisco State University',conference:'California Collegiate Athletic Association',division:'D2',head_coach_email:'seba@sfsu.edu',assistant_coach1_email:'mahurtado@sfsu.edu'},
+  {name:'California State University San Marcos',conference:'California Collegiate Athletic Association',division:'D2',head_coach_email:'rpulvers@csusm.edu',assistant_coach1_email:'maldama@csusm.edu'},
+  {name:'California State University Monterey Bay',conference:'California Collegiate Athletic Association',division:'D2',head_coach_email:'gjaap@csumb.edu',assistant_coach1_email:'anvelasquez@csumb.edu'},
+  {name:'University of California Merced',conference:'California Collegiate Athletic Association',division:'D2',head_coach_email:'amartins@ucmerced.edu'},
+  // Pacific West Conference (14)
+  {name:'Biola University',conference:'Pacific West Conference',division:'D2',head_coach_email:'bu.men.soccer@biola.edu',assistant_coach1_email:'benjamin.jordon@biola.edu'},
+  {name:'Azusa Pacific University',conference:'Pacific West Conference',division:'D2',head_coach_email:'dblomquist@apu.edu'},
+  {name:'Concordia University Irvine',conference:'Pacific West Conference',division:'D2',head_coach_email:'erik.kirsch@cui.edu',assistant_coach1_email:'matthew.hanson1@cui.edu'},
+  {name:'University of Hawaii at Hilo',conference:'Pacific West Conference',division:'D2',head_coach_email:'dmarr@hawaii.edu',assistant_coach1_email:'terryy@hawaii.edu'},
+  {name:'Westmont College',conference:'Pacific West Conference',division:'D2',head_coach_email:'menssoccer@westmont.edu'},
+  {name:'Academy of Art University',conference:'Pacific West Conference',division:'D2',head_coach_email:'dkirkland@academyart.edu',assistant_coach1_email:'mmcneill@academyart.edu'},
+  {name:'Dominican University of California',conference:'Pacific West Conference',division:'D2',head_coach_email:'david.frank@dominican.edu',assistant_coach1_email:'ricardo.martin@dominican.edu'},
+  {name:'Point Loma Nazarene University',conference:'Pacific West Conference',division:'D2',head_coach_email:'msoccer@pointloma.edu'},
+  {name:'Chaminade University of Honolulu',conference:'Pacific West Conference',division:'D2',head_coach_email:'msoccer@chaminade.edu'},
+  {name:'Hawaii Pacific University',conference:'Pacific West Conference',division:'D2',head_coach_email:'cfisher@hpu.edu',assistant_coach1_email:'jggraham@hpu.edu'},
+  {name:'Fresno Pacific University',conference:'Pacific West Conference',division:'D2',head_coach_email:'jaime.ramirez@fresno.edu',assistant_coach1_email:'cameron.shahrokhi@fresno.edu'},
+  {name:'Jessup University',conference:'Pacific West Conference',division:'D2',head_coach_email:'glazaga@jessup.edu',assistant_coach1_email:'dramos@jessup.edu'},
+  {name:'Menlo College',conference:'Pacific West Conference',division:'D2',head_coach_email:'keith.lambert@menlo.edu',assistant_coach1_email:'matthew.tudor@menlo.edu'},
+  {name:'Vanguard University of Southern California',conference:'Pacific West Conference',division:'D2',head_coach_email:'jmiramontes@vanguard.edu',assistant_coach1_email:'shion.jahangiri@vanguard.edu'},
+  // Great Northwest Athletic Conference (6)
+  {name:'Northwest Nazarene University',conference:'Great Northwest Athletic Conference',division:'D2',head_coach_email:'msoccer@northwestern.edu',assistant_coach1_email:'rbouemboue@northwestern.edu'},
+  {name:'Montana State University Billings',conference:'Great Northwest Athletic Conference',division:'D2',head_coach_email:'paul.cuevas@msubillings.edu',assistant_coach1_email:'milo.downey@msubillings.edu'},
+  {name:'Western Oregon University',conference:'Great Northwest Athletic Conference',division:'D2',head_coach_email:'Behonickm@wou.edu',assistant_coach1_email:'kageyt@wou.edu'},
+  {name:"Saint Martin's University",conference:'Great Northwest Athletic Conference',division:'D2',head_coach_email:'rwalker@stmartin.edu'},
+  {name:'Seattle Pacific University',conference:'Great Northwest Athletic Conference',division:'D2',head_coach_email:'sakudak1@spu.edu',assistant_coach1_email:'swettj@spu.edu'},
+  {name:'Western Washington University',conference:'Great Northwest Athletic Conference',division:'D2',head_coach_email:'wwumsoccer@wwu.edu'},
+  // Rocky Mountain Athletic Conference (11)
+  {name:'Colorado State University Pueblo',conference:'Rocky Mountain Athletic Conference',division:'D2',head_coach_email:'nicholas.blackwell@csupueblo.edu'},
+  {name:'Colorado School of Mines',conference:'Rocky Mountain Athletic Conference',division:'D2',head_coach_email:'gmulholl@mines.edu',assistant_coach1_email:'csmoore@mines.edu'},
+  {name:'Metropolitan State University of Denver',conference:'Rocky Mountain Athletic Conference',division:'D2',head_coach_email:'nkirchho@msudenver.edu',assistant_coach1_email:'ebracy1@msudenver.edu'},
+  {name:'Colorado Christian University',conference:'Rocky Mountain Athletic Conference',division:'D2',head_coach_email:'bcamp@ccu.edu',assistant_coach1_email:'jdickhausen@ccu.edu'},
+  {name:'Colorado Mesa University',conference:'Rocky Mountain Athletic Conference',division:'D2',head_coach_email:'jfridal@coloradomesa.edu',assistant_coach1_email:'bbautista@coloradomesa.edu'},
+  {name:'Adams State University',conference:'Rocky Mountain Athletic Conference',division:'D2',head_coach_email:'jgilfert@adams.edu',assistant_coach1_email:'burkettkm@adams.edu'},
+  {name:'University of Colorado Springs',conference:'Rocky Mountain Athletic Conference',division:'D2',head_coach_email:'lwilcox2@uccs.edu',assistant_coach1_email:'kbuderus@uccs.edu'},
+  {name:'Fort Lewis College',conference:'Rocky Mountain Athletic Conference',division:'D2',head_coach_email:'dwoberholtzer@fortlewis.edu',assistant_coach1_email:'dnino@fortlewis.edu',assistant_coach2_email:'msbaldridge@fortlewis.edu'},
+  {name:'Regis University',conference:'Rocky Mountain Athletic Conference',division:'D2',head_coach_email:'tdiem@regis.edu',assistant_coach1_email:'rainscough@regis.edu'},
+  {name:'South Dakota School of Mines and Technology',conference:'Rocky Mountain Athletic Conference',division:'D2',head_coach_email:'Robert.Reagan@sdsmt.edu'},
+  {name:'Westminster College',conference:'Rocky Mountain Athletic Conference',division:'D2',head_coach_email:'thakargs@westminster.edu',assistant_coach1_email:'tinneysp@westminster.edu'},
+  // Pennsylvania State Athletic Conference (12)
+  {name:'Bloomsburg University',conference:'Pennsylvania State Athletic Conference',division:'D2',head_coach_email:'mbassett@bloomu.edu',assistant_coach1_email:'stgamsoc@bloomu.edu'},
+  {name:'PennWest California',conference:'Pennsylvania State Athletic Conference',division:'D2',head_coach_email:'sabic@pennwest.edu',assistant_coach1_email:'luciano@pennwest.edu'},
+  {name:'East Stroudsburg University of Pennsylvania',conference:'Pennsylvania State Athletic Conference',division:'D2',head_coach_email:'tmustac@esu.edu',assistant_coach1_email:'cmuller3@esu.edu',assistant_coach2_email:'afrancis3@live.esu.edu'},
+  {name:'Millersville University of Pennsylvania',conference:'Pennsylvania State Athletic Conference',division:'D2',head_coach_email:'steven.widdowson@millersville.edu',assistant_coach1_email:'lyle.howe@millersville.edu'},
+  {name:'Seton Hill University',conference:'Pennsylvania State Athletic Conference',division:'D2',assistant_coach1_email:'jeffrey.matteo@shu.edu',assistant_coach2_email:'nicolai.andersen@shu.edu'},
+  {name:'Shippensburg University',conference:'Pennsylvania State Athletic Conference',division:'D2',head_coach_email:'jjspering@ship.edu',assistant_coach1_email:'gwdavies@ship.edu',assistant_coach2_email:'JMDailey@ship.edu'},
+  {name:'Slippery Rock University of Pennsylvania',conference:'Pennsylvania State Athletic Conference',division:'D2',head_coach_email:'kevin.wilhelm@sru.edu'},
+  {name:'West Chester University of Pennsylvania',conference:'Pennsylvania State Athletic Conference',division:'D2',head_coach_email:'mbenn@wcupa.edu',assistant_coach1_email:'rdallas@wcupa.edu'},
+  {name:'Gannon University',conference:'Pennsylvania State Athletic Conference',division:'D2',head_coach_email:'colton002@gannon.edu',assistant_coach1_email:'blythe003@gannon.edu',assistant_coach2_email:'young105@gannon.edu'},
+  {name:'Lock Haven University',conference:'Pennsylvania State Athletic Conference',division:'D2',head_coach_email:'pdl347@lockhaven.edu',assistant_coach1_email:'cat5512@lockhaven.edu'},
+  {name:'University of Pittsburgh at Johnstown',conference:'Pennsylvania State Athletic Conference',division:'D2'},
+  {name:'Shepherd University',conference:'Pennsylvania State Athletic Conference',division:'D2',head_coach_email:'rmcdouga@shepherd.edu',assistant_coach1_email:'mfairs01@rams.shepherd.edu'},
+  // Northeast-10 Conference (11)
+  {name:'Franklin Pierce University',conference:'Northeast-10 Conference',division:'D2',head_coach_email:'brentt@franklinpierce.edu',assistant_coach1_email:'navarroj23@live.franklinpierce.edu',assistant_coach2_email:'rbrooks21@live.franklinpierce.edu'},
+  {name:'American International College',conference:'Northeast-10 Conference',division:'D2',head_coach_email:'Jake.Durham@aic.edu',assistant_coach1_email:'derek.pereira@aic.edu',assistant_coach2_email:'troy.brady@aic.edu'},
+  {name:'Assumption University',conference:'Northeast-10 Conference',division:'D2',head_coach_email:'tb.heimreid@assumption.edu',assistant_coach1_email:'cj.clarke@assumption.edu'},
+  {name:'Bentley University',conference:'Northeast-10 Conference',division:'D2',head_coach_email:'gcrompton@bentley.edu',assistant_coach1_email:'tgugushe@bentley.edu',assistant_coach2_email:'jparsons@bentley.edu'},
+  {name:'Southern New Hampshire University',conference:'Northeast-10 Conference',division:'D2',head_coach_email:'joshua.taylor@snhu.edu',assistant_coach1_email:'s.chrysafidis@snhu.edu',assistant_coach2_email:'p.tuttle2@snhu.edu'},
+  {name:'Saint Anselm College',conference:'Northeast-10 Conference',division:'D2',head_coach_email:'bvictal@anselm.edu',assistant_coach1_email:'timfield@anselm.edu',assistant_coach2_email:'zelliot@anselm.edu'},
+  {name:'Adelphi University',conference:'Northeast-10 Conference',division:'D2',head_coach_email:'gbook@adelphi.edu',assistant_coach1_email:'cvazquez@adelphi.edu',assistant_coach2_email:'jlandow@adelphi.edu'},
+  {name:"Saint Michael's College",conference:'Northeast-10 Conference',division:'D2',head_coach_email:'wjean@smcvt.edu',assistant_coach1_email:'lstazi@smcvt.edu',assistant_coach2_email:'dgreenleaf@smcvt.edu'},
+  {name:'Southern Connecticut State University',conference:'Northeast-10 Conference',division:'D2',head_coach_email:'andersonk3@southernct.edu',assistant_coach1_email:'ayarnar1@southernct.edu'},
+  {name:'College of Saint Rose',conference:'Northeast-10 Conference',division:'D2',head_coach_email:'wieczors@strose.edu',assistant_coach1_email:'hoyosm@strose.edu',assistant_coach2_email:'sternt@strose.edu'},
+  // South Atlantic Conference (12)
+  {name:'Wingate University',conference:'South Atlantic Conference',division:'D2',head_coach_email:'hamill@wingate.edu',assistant_coach1_email:'h.crosbee@wingate.edu',assistant_coach2_email:'ak.juul@wingate.edu'},
+  {name:'Lenoir-Rhyne University',conference:'South Atlantic Conference',division:'D2',head_coach_email:'Carlos.Rubio@lr.edu',assistant_coach1_email:'jorge.morales@lr.edu',assistant_coach2_email:'Will.VanHoornbeek@lr.edu'},
+  {name:'Mars Hill University',conference:'South Atlantic Conference',division:'D2',head_coach_email:'gmunn@mhu.edu',assistant_coach1_email:'jaron_hulme@mhu.edu',assistant_coach2_email:'g_holandapalmieri@mhu.edu'},
+  {name:'Tusculum University',conference:'South Atlantic Conference',division:'D2',head_coach_email:'khughes@tusculum.edu',assistant_coach1_email:'ddixon@tusculum.edu'},
+  {name:'Catawba College',conference:'South Atlantic Conference',division:'D2'},
+  {name:'Anderson University',conference:'South Atlantic Conference',division:'D2',head_coach_email:'mzion@andersonuniversity.edu',assistant_coach1_email:'stapia@andersonuniversity.edu'},
+  {name:'Coker University',conference:'South Atlantic Conference',division:'D2',head_coach_email:'smagennis@coker.edu',assistant_coach1_email:'connor.mcalister@coker.edu'},
+  {name:'Newberry College',conference:'South Atlantic Conference',division:'D2',head_coach_email:'justin.cook@newberry.edu',assistant_coach1_email:'noah.vezzu@newberry.edu'},
+  {name:'Carson-Newman University',conference:'South Atlantic Conference',division:'D2',head_coach_email:'slyons@cn.edu',assistant_coach1_email:'kcardona@cn.edu'},
+  {name:'Lincoln Memorial University',conference:'South Atlantic Conference',division:'D2',head_coach_email:'thomas.gillette@lmunet.edu',assistant_coach1_email:'august.harp@lmunet.edu',assistant_coach2_email:'juan.fernandez@lmunet.edu'},
+  {name:'Emory and Henry College',conference:'South Atlantic Conference',division:'D2',head_coach_email:'dgrillet@emoryhenry.edu',assistant_coach1_email:'balynch@emoryhenry.edu'},
+  {name:'Limestone University',conference:'South Atlantic Conference',division:'D2',head_coach_email:'aalgashamy@limestone.edu',assistant_coach1_email:'pswalker@limestone.edu',assistant_coach2_email:'mvillarroya3000@limestone.edu'},
+  // Peach Belt Conference (6)
+  {name:'Lander University',conference:'Peach Belt Conference',division:'D2',head_coach_email:'dparker@lander.edu',assistant_coach1_email:'lmorris@lander.edu',assistant_coach2_email:'erogers@lander.edu'},
+  {name:'Clayton State University',conference:'Peach Belt Conference',division:'D2',head_coach_email:'PetePetersen@Clayton.edu',assistant_coach1_email:'amcilroy@student.clayton.edu',assistant_coach2_email:'jonathanmercado@clayton.edu'},
+  {name:'University of South Carolina Aiken',conference:'Peach Belt Conference',division:'D2',head_coach_email:'nicolaus.sakiewicz@usca.edu'},
+  {name:'Georgia Southwestern State University',conference:'Peach Belt Conference',division:'D2',head_coach_email:'eric.crawford@gsw.edu',assistant_coach1_email:'nathaniel.getman@gsw.edu'},
+  {name:'University of North Georgia',conference:'Peach Belt Conference',division:'D2',head_coach_email:'anel.lilic@ung.edu',assistant_coach1_email:'omar.jarun@ung.edu',assistant_coach2_email:'alex.wright@ung.edu'},
+  {name:'Flagler University',conference:'Peach Belt Conference',division:'D2',head_coach_email:'msoc@flagler.edu'},
+  // Great American Conference (7)
+  {name:'Newman University',conference:'Great American Conference',division:'D2',head_coach_email:'dominguesv@newmanu.edu',assistant_coach1_email:'machadov@newmanu.edu'},
+  {name:'Rogers State University',conference:'Great American Conference',division:'D2',head_coach_email:'jsimpson@rsu.edu'},
+  {name:'Northeastern State University',conference:'Great American Conference',division:'D2',head_coach_email:'czlonka@nsuok.edu'},
+  {name:'Southern Nazarene University',conference:'Great American Conference',division:'D2',head_coach_email:'tharmon@snu.edu',assistant_coach1_email:'adasilva@mail.snu.edu',assistant_coach2_email:'jmarrufo@mail.snu.edu'},
+  {name:'Fort Hays State University',conference:'Great American Conference',division:'D2',head_coach_email:'ajnichols@fhsu.edu',assistant_coach1_email:'s_mohacht@mail.fhsu.edu'},
+  {name:'Ouachita Baptist University',conference:'Great American Conference',division:'D2',head_coach_email:'holifieldw@obu.edu',assistant_coach1_email:'sancheza@obu.edu'},
+  {name:'Harding University',conference:'Great American Conference',division:'D2',head_coach_email:'jdireland@harding.edu',assistant_coach1_email:'gbraghettootero@harding.edu'},
+  // Great Midwest Athletic Conference (11)
+  {name:'Lake Erie College',conference:'Great Midwest Athletic Conference',division:'D2',head_coach_email:'lrolko@lec.edu',assistant_coach1_email:'rdean@lec.edu',assistant_coach2_email:'shall@lec.edu'},
+  {name:'Ashland University',conference:'Great Midwest Athletic Conference',division:'D2',head_coach_email:'nrobert8@ashland.edu'},
+  {name:'University of Findlay',conference:'Great Midwest Athletic Conference',division:'D2',head_coach_email:'smyth@findlay.edu',assistant_coach1_email:'sleasmanm@findlay.edu'},
+  {name:'Tiffin University',conference:'Great Midwest Athletic Conference',division:'D2',head_coach_email:'rbrownel@tiffin.edu',assistant_coach1_email:'ewingnr@tiffin.edu',assistant_coach2_email:'coridoncc@tiffin.edu'},
+  {name:'Walsh University',conference:'Great Midwest Athletic Conference',division:'D2',head_coach_email:'ahoggarth@walsh.edu',assistant_coach1_email:'cgifford1@walsh.edu'},
+  {name:'Kentucky Wesleyan College',conference:'Great Midwest Athletic Conference',division:'D2',head_coach_email:'jfusco@kwc.edu',assistant_coach1_email:'krzysztof.rapacz@kwc.edu'},
+  {name:'Thomas More University',conference:'Great Midwest Athletic Conference',division:'D2',head_coach_email:'phippsr@thomasmore.edu',assistant_coach1_email:'popgeorgip@thomasmore.edu',assistant_coach2_email:'kikondas@thomasmore.edu'},
+  {name:'Northwood University',conference:'Great Midwest Athletic Conference',division:'D2',head_coach_email:'shards@northwood.edu',assistant_coach1_email:'walkerst@northwood.edu',assistant_coach2_email:'hartla26@northwood.edu'},
+  {name:'Cedarville University',conference:'Great Midwest Athletic Conference',division:'D2',head_coach_email:'bfaro@cedarville.edu',assistant_coach1_email:'jstiles@cedarville.edu',assistant_coach2_email:'tjmilby@cedarville.edu'},
+  {name:'Malone University',conference:'Great Midwest Athletic Conference',division:'D2',head_coach_email:'blawrence@malone.edu'},
+  {name:'Ohio Dominican University',conference:'Great Midwest Athletic Conference',division:'D2',head_coach_email:'merrickw@ohiodominican.edu',assistant_coach1_email:'evansj10@ohiodominican.edu'},
+];
+
+async function seedD2Schools() {
+  const btn = document.querySelectorAll('.btn-seed')[1];
+  btn.textContent = 'seeding d2...'; btn.disabled = true;
+  const existing = state.schools.map(s => s.name.toLowerCase());
+  const toInsert = D2_SCHOOLS.filter(s => !existing.includes(s.name.toLowerCase()));
+  if (!toInsert.length) { toast('all d2 schools already seeded'); btn.textContent = 'seed d2 schools'; btn.disabled = false; return; }
+  const chunks = [];
+  for (let i = 0; i < toInsert.length; i += 50) chunks.push(toInsert.slice(i, i + 50));
+  for (const chunk of chunks) {
+    const { error } = await sb.from('schools').insert(chunk);
+    if (error) { toast(error.message, true); btn.textContent = 'seed d2 schools'; btn.disabled = false; return; }
+  }
+  toast(`seeded ${toInsert.length} d2 schools`);
+  btn.textContent = 'seed d2 schools'; btn.disabled = false;
+  loadSchools();
+}
+
+const D3_SCHOOLS = [
+  // Northern Athletics CC
+  {name:'Aurora University',conference:'Northern Athletics CC',division:'D3',head_coach_email:'rlakin@aurora.edu'},
+  {name:'Concordia University-Chicago',conference:'Northern Athletics CC',division:'D3',head_coach_email:'Brad.Callahan@cuchicago.edu',assistant_coach1_email:'crf_jonese4@cuchicago.edu'},
+  {name:'Illinois Institute of Technology',conference:'Northern Athletics CC',division:'D3',head_coach_email:'mmckenzie1@iit.edu'},
+  {name:'Dominican University',conference:'Northern Athletics CC',division:'D3',head_coach_email:'ebauman@dom.edu',assistant_coach1_email:'Mchwistek@dom.edu',assistant_coach2_email:'jarzeta@dom.edu'},
+  {name:'Concordia University-Wisconsin',conference:'Northern Athletics CC',division:'D3',head_coach_email:'johnt.saleska@cuw.edu',assistant_coach1_email:'benjamin.gyuricza@cuw.edu',assistant_coach2_email:'daniel.carpenter@cuw.edu'},
+  {name:'Lakeland College',conference:'Northern Athletics CC',division:'D3',head_coach_email:'quintellk@lakeland.edu',assistant_coach1_email:'dasilvamk@lakeland.edu',assistant_coach2_email:'mejiaj@lakeland.edu'},
+  {name:'Marian University',conference:'Northern Athletics CC',division:'D3',head_coach_email:'kjmiller37@marianuniversity.edu',assistant_coach1_email:'ajmcmillan08@marianuniversity.edu'},
+  {name:'Milwaukee School of Engineering',conference:'Northern Athletics CC',division:'D3',head_coach_email:'harrington@msoe.edu'},
+  {name:'Saint Norbert College',conference:'Northern Athletics CC',division:'D3',head_coach_email:'derek.rhodes@snc.edu',assistant_coach1_email:'tyler.kassube@snc.edu'},
+  {name:'Wisconsin Lutheran College',conference:'Northern Athletics CC',division:'D3',head_coach_email:'joseph.luedke@wlc.edu',assistant_coach1_email:'ryan.mazza@mail.wlc.edu'},
+  {name:'Benedictine University',conference:'Northern Athletics CC',division:'D3',head_coach_email:'spappas@ben.edu',assistant_coach1_email:'laspinall-stanton@ben.edu'},
+  {name:'Rockford University',conference:'Northern Athletics CC',division:'D3'},
+  {name:'Edward College',conference:'Northern Athletics CC',division:'D3'},
+  // Ohio Athletic Conference
+  {name:'Ohio Northern University',conference:'Ohio Athletic Conference',division:'D3',head_coach_email:'c-matejka@onu.edu',assistant_coach1_email:'s-owings@onu.edu',assistant_coach2_email:'d-spaeth@onu.edu'},
+  {name:'John Carroll University',conference:'Ohio Athletic Conference',division:'D3',head_coach_email:'dmladenovic@jcu.edu',assistant_coach1_email:'apilekic@jcu.edu',assistant_coach2_email:'madelman@jcu.edu'},
+  {name:'Capital University',conference:'Ohio Athletic Conference',division:'D3',head_coach_email:'ckirk20@capital.edu',assistant_coach1_email:'mhughes78@capital.edu',assistant_coach2_email:'mjohnson63@capital.edu'},
+  {name:'Baldwin Wallace University',conference:'Ohio Athletic Conference',division:'D3',head_coach_email:'rayers@bw.edu',assistant_coach1_email:'jjovanov@bw.edu'},
+  {name:'Heidelberg University',conference:'Ohio Athletic Conference',division:'D3',head_coach_email:'mwright7@heidelberg.edu',assistant_coach1_email:'dbriggs2@heidelberg.edu',assistant_coach2_email:'jtolley@heidelberg.edu'},
+  {name:'Marietta College',conference:'Ohio Athletic Conference',division:'D3',head_coach_email:'jmb021@marietta.edu',assistant_coach1_email:'ckh003@marietta.edu'},
+  {name:'University of Mount Union',conference:'Ohio Athletic Conference',division:'D3',head_coach_email:'kremsda@mountunion.edu'},
+  {name:'Muskingum University',conference:'Ohio Athletic Conference',division:'D3',head_coach_email:'jlubich@muskingum.edu',assistant_coach1_email:'glong2@muskingum.edu'},
+  {name:'Otterbein University',conference:'Ohio Athletic Conference',division:'D3',head_coach_email:'jgriffiths@otterbein.edu',assistant_coach1_email:'heard1@otterbein.edu',assistant_coach2_email:'malobabic1@otterbein.edu'},
+  {name:'Wilmington College',conference:'Ohio Athletic Conference',division:'D3',head_coach_email:'cory.bucur@wilmington.edu',assistant_coach1_email:'nick.stifel@wilmington.edu',assistant_coach2_email:'casey.j.miller@wilmington.edu'},
+  // Midwest Conference
+  {name:'Lake Forest College',conference:'Midwest Conference',division:'D3',head_coach_email:'andrews@lakeforest.edu',assistant_coach1_email:'bearnest@lakeforest.edu',assistant_coach2_email:'kyjones@lakeforest.edu'},
+  {name:'Knox College',conference:'Midwest Conference',division:'D3',head_coach_email:'kakpore@knox.edu',assistant_coach1_email:'vodantas@knox.edu'},
+  {name:'Illinois College',conference:'Midwest Conference',division:'D3',head_coach_email:'evan.philpott@ic.edu',assistant_coach1_email:'johndavid.antoine@ic.edu',assistant_coach2_email:'nzojyibwami@gmail.com'},
+  {name:'Monmouth College',conference:'Midwest Conference',division:'D3',head_coach_email:'ihatleli@monmouthcollege.edu',assistant_coach1_email:'rlewis@monmouthcollege.edu'},
+  {name:'Cornell College',conference:'Midwest Conference',division:'D3',head_coach_email:'ngrosse@cornellcollege.edu',assistant_coach1_email:'jschumacher@cornellcollege.edu',assistant_coach2_email:'jlenhart@cornellcollege.edu'},
+  {name:'Grinnell College',conference:'Midwest Conference',division:'D3',head_coach_email:'jaworski@grinnell.edu',assistant_coach1_email:'mcpheew@grinnell.edu'},
+  {name:'Beloit College',conference:'Midwest Conference',division:'D3',head_coach_email:'sanchezpa@beloit.edu',assistant_coach1_email:'wachholzb@beloit.edu'},
+  {name:'Lawrence University',conference:'Midwest Conference',division:'D3',head_coach_email:'will.greer@lawrence.edu',assistant_coach1_email:'alexander.c.liddell@lawrence.edu'},
+  {name:'Ripon College',conference:'Midwest Conference',division:'D3',head_coach_email:'rheinm@ripon.edu',assistant_coach1_email:'scottd@ripon.edu'},
+  // United East Conference
+  {name:'Penn State Harrisburg',conference:'United East Conference',division:'D3',head_coach_email:'avg6267@psu.edu',assistant_coach1_email:'csw5512@psu.edu'},
+  {name:'Rosemont College',conference:'United East Conference',division:'D3',head_coach_email:'john.loiodice@rosemont.edu',assistant_coach1_email:'nicholas.hanuscin@rosemont.edu',assistant_coach2_email:'anthony.tarsatana@rosemont.edu'},
+  {name:"St Mary's College of Maryland",conference:'United East Conference',division:'D3',head_coach_email:'amoliver@smcm.edu',assistant_coach1_email:'jjwebster@smcm.edu',assistant_coach2_email:'kdseeger@smcm.edu'},
+  {name:'Saint Elizabeth University',conference:'United East Conference',division:'D3',head_coach_email:'anperez@steu.edu'},
+  {name:'Bryn Athyn College',conference:'United East Conference',division:'D3',head_coach_email:'bill.oneill@brynathyn.edu',assistant_coach1_email:'andrew.weyershaeuser@brynathyn.edu'},
+  {name:'Keystone College',conference:'United East Conference',division:'D3',head_coach_email:'clint.caso@keystone.edu',assistant_coach1_email:'hcamaja@keystone.edu',assistant_coach2_email:'keystonesoccer@keystone.edu'},
+  {name:'Lancaster Bible College',conference:'United East Conference',division:'D3',head_coach_email:'tardt@lbc.edu',assistant_coach1_email:'joe@restoredinvestment.com',assistant_coach2_email:'naquethiago@gmail.com'},
+  {name:'Penn State Berks',conference:'United East Conference',division:'D3',head_coach_email:'fam11@psu.edu',assistant_coach1_email:'tjg29@psu.edu'},
+  {name:'Penn State Abington',conference:'United East Conference',division:'D3',head_coach_email:'pjm6178@psu.edu',assistant_coach1_email:'rmu5084@psu.edu'},
+  {name:'Cairn University',conference:'United East Conference',division:'D3',head_coach_email:'lgibson@cairn.edu',assistant_coach1_email:'cgrogan@cairn.edu',assistant_coach2_email:'jweaver@cairn.edu'},
+  {name:'Pennsylvania College of Technology',conference:'United East Conference',division:'D3',head_coach_email:'tsm6@pct.edu'},
+  {name:'Gallaudet University',conference:'United East Conference',division:'D3',head_coach_email:'javad.shaw@gallaudet.edu',assistant_coach1_email:'james.rummo@gallaudet.edu',assistant_coach2_email:'christopher.jappah@gallaudet.edu'},
+  {name:'University of Valley Forge',conference:'United East Conference',division:'D3',head_coach_email:'SEBower@valleyforge.edu',assistant_coach1_email:'J_Colegrove@valleyforge.edu',assistant_coach2_email:'g_andino@valleyforge.edu'},
+  {name:'Wilson College',conference:'United East Conference',division:'D3',head_coach_email:'christopher.higgins@wilson.edu'},
+  {name:'Notre Dame of Maryland University',conference:'United East Conference',division:'D3',head_coach_email:'folszewski@ndm.edu'},
+  {name:'Penn State Brandywine',conference:'United East Conference',division:'D3',head_coach_email:'mjc5483@psu.edu'},
+  // New England AC
+  {name:'Wheaton College (MA)',conference:'New England AC',division:'D3',head_coach_email:'waggoner_bryan@wheatoncollege.edu',assistant_coach1_email:'perez_freddy@wheatoncollege.edu',assistant_coach2_email:'gatanis_thomas@wheatoncollege.edu'},
+  {name:'Emerson College',conference:'New England AC',division:'D3',head_coach_email:'liam_mckersie@emerson.edu',assistant_coach1_email:'menssoccer@emerson.edu'},
+  {name:'US Coast Guard Academy',conference:'New England AC',division:'D3',head_coach_email:'chris.parsons@uscga.edu'},
+  {name:'Babson College',conference:'New England AC',division:'D3',head_coach_email:'andersonj@babson.edu',assistant_coach1_email:'ereutemann@babson.edu',assistant_coach2_email:'esundsted@babson.edu'},
+  {name:'Clark University',conference:'New England AC',division:'D3',head_coach_email:'msoccer@clarku.edu',assistant_coach1_email:'jarsmith@clarku.edu'},
+  {name:'MIT',conference:'New England AC',division:'D3',head_coach_email:'kbovell@mit.edu',assistant_coach1_email:'sam2200@mit.edu'},
+  {name:'Springfield College',conference:'New England AC',division:'D3',head_coach_email:'menssoccer@springfieldcollege.edu'},
+  {name:'Worcester Polytechnic Institute',conference:'New England AC',division:'D3',head_coach_email:'bkelley@wpi.edu',assistant_coach1_email:'arwolfel@wpi.edu',assistant_coach2_email:'dforan@wpi.edu'},
+  {name:'Salve Regina University',conference:'New England AC',division:'D3',head_coach_email:'william.lawler@salve.edu',assistant_coach1_email:'evan.macdonald@salve.edu',assistant_coach2_email:'nathan.reid@salve.edu'},
+  // Independent
+  {name:'Maranatha Baptist University',conference:'Independent',division:'D3',head_coach_email:'jeff.pill@mbu.edu',assistant_coach1_email:'lane.hansel@mbu.edu',assistant_coach2_email:'taylor.pill@mbu.edu'},
+  // Empire
+  {name:'SUNY Brockport',conference:'Empire',division:'D3',head_coach_email:'glapietr@brockport.edu',assistant_coach1_email:'dlynd@brockport.edu',assistant_coach2_email:'dlapietra@brockport.edu'},
+  {name:'SUNY Geneseo',conference:'Empire',division:'D3',head_coach_email:'howlett@Geneseo.edu'},
+  {name:'Hartwick College',conference:'Empire',division:'D3',head_coach_email:'scottj@hartwick.edu',assistant_coach1_email:'hiltyr@hartwick.edu',assistant_coach2_email:'talbott@hartwick.edu'},
+  {name:'Alfred University',conference:'Empire',division:'D3',head_coach_email:'eldridgeg@alfred.edu',assistant_coach1_email:'jre2@alfred.edu'},
+  {name:'Elmira College',conference:'Empire',division:'D3',head_coach_email:'jmcintyre@elmira.edu',assistant_coach1_email:'bcoulibaly@elmira.edu'},
+  {name:'Nazareth University',conference:'Empire',division:'D3',head_coach_email:'mtantal1@naz.edu',assistant_coach1_email:'jsulliv61@naz.edu',assistant_coach2_email:'mmoreir0@naz.edu'},
+  {name:'The Sage Colleges',conference:'Empire',division:'D3',head_coach_email:'pasica@sage.edu'},
+  {name:'Saint John Fisher College',conference:'Empire',division:'D3',head_coach_email:'jburgasser@sjf.edu',assistant_coach1_email:'sgarno@sjf.edu',assistant_coach2_email:'icaspersson@sjf.edu'},
+  {name:'Utica University',conference:'Empire',division:'D3',head_coach_email:'blmarcan@utica.edu',assistant_coach1_email:'jmpanton@utica.edu'},
+  {name:'Keuka College',conference:'Empire',division:'D3',head_coach_email:'mdrake@keuka.edu'},
+  {name:'SUNY Polytechnic Institute',conference:'Empire',division:'D3',head_coach_email:'Peterson.Jerome@sunypoly.edu'},
+  {name:'Houghton University',conference:'Empire',division:'D3',head_coach_email:'bobby.mccoll@houghton.edu',assistant_coach1_email:'caleb.loew@houghton.edu'},
+  // Atlantic East Conference
+  {name:'Marymount University',conference:'Atlantic East Conference',division:'D3',head_coach_email:'nkalin@marymount.edu',assistant_coach1_email:'joshua_slager@marymount.edu',assistant_coach2_email:'ageier@marymount.edu'},
+  {name:'Pratt Institute',conference:'Atlantic East Conference',division:'D3',head_coach_email:'szomopou@pratt.edu'},
+  {name:'Gwynedd Mercy University',conference:'Atlantic East Conference',division:'D3',head_coach_email:'bontempo.d@gmercyu.edu',assistant_coach1_email:'bono.w@gmercyu.edu',assistant_coach2_email:'wambold.m@gmercyu.edu'},
+  {name:'Immaculata University',conference:'Atlantic East Conference',division:'D3',head_coach_email:'rpunt@immaculata.edu',assistant_coach1_email:'aricci1@immaculata.edu'},
+  {name:'Marywood University',conference:'Atlantic East Conference',division:'D3',head_coach_email:'bosborne@marywood.edu',assistant_coach1_email:'rfuchs@marywood.edu'},
+  {name:'Neumann University',conference:'Atlantic East Conference',division:'D3',head_coach_email:'templee@neumann.edu',assistant_coach1_email:'swarbriz@neumann.edu',assistant_coach2_email:'lewisd@neumann.edu'},
+  {name:'Centenary University',conference:'Atlantic East Conference',division:'D3',head_coach_email:'ashley.nesbit@centenaryuniversity.edu',assistant_coach1_email:'anthony.cerda@centenaryuniversity.edu'},
+  // Middle Atlantic C Freedom
+  {name:'Stevens Institute of Technology',conference:'Middle Atlantic C Freedom',division:'D3',head_coach_email:'djordan@stevens.edu',assistant_coach1_email:'dswanwic@stevens.edu'},
+  {name:'Misericordia University',conference:'Middle Atlantic C Freedom',division:'D3',head_coach_email:'amoore@misericordia.edu',assistant_coach1_email:'coulibag@misericordia.edu'},
+  {name:'Arcadia University',conference:'Middle Atlantic C Freedom',division:'D3',head_coach_email:'ClementiJ@arcadia.edu',assistant_coach1_email:'noela@arcadia.edu',assistant_coach2_email:'catalanac@arcadia.edu'},
+  {name:'Lebanon Valley College',conference:'Middle Atlantic C Freedom',division:'D3',head_coach_email:'grimes@lvc.edu',assistant_coach1_email:'tjm002@lvc.edu',assistant_coach2_email:'ajr002@lvc.edu'},
+  {name:'FDU-Florham',conference:'Middle Atlantic C Freedom',division:'D3',head_coach_email:'kjoconnor@fdu.edu',assistant_coach1_email:'rmeeker@fdu.edu',assistant_coach2_email:'zuta@fdu.edu'},
+  {name:'DeSales University',conference:'Middle Atlantic C Freedom',division:'D3',head_coach_email:'George.Crampton@desales.edu',assistant_coach1_email:'Eamon.McLaughlin@desales.edu'},
+  {name:'Delaware Valley University',conference:'Middle Atlantic C Freedom',division:'D3',head_coach_email:'Shaquille.Stephenson@delval.edu'},
+  {name:'Kings College',conference:'Middle Atlantic C Freedom',division:'D3',head_coach_email:'brandonraynor@kings.edu',assistant_coach1_email:'thomasknox@kings.edu'},
+  // American River Conference
+  {name:'Luther College',conference:'American River Conference',division:'D3',head_coach_email:'garcch01@luther.edu',assistant_coach1_email:'daveca01@luther.edu',assistant_coach2_email:'jubete01@luther.edu'},
+  {name:'University of Dubuque',conference:'American River Conference',division:'D3',head_coach_email:'AMathys@dbq.edu',assistant_coach1_email:'yxiong@dbq.edu'},
+  {name:'Buena Vista University',conference:'American River Conference',division:'D3',head_coach_email:'resnickk@bvu.edu',assistant_coach1_email:'stinerc@bvu.edu'},
+  {name:'Central College',conference:'American River Conference',division:'D3',head_coach_email:'laidlawg@central.edu',assistant_coach1_email:'apostolopoulosp@central.edu'},
+  {name:'Coe College',conference:'American River Conference',division:'D3',head_coach_email:'kbakas@coe.edu',assistant_coach1_email:'glynch@coe.edu'},
+  {name:'Loras College',conference:'American River Conference',division:'D3',head_coach_email:'samuel.koenig@loras.edu',assistant_coach1_email:'matthew.pucci@loras.edu'},
+  {name:'Simpson College',conference:'American River Conference',division:'D3',head_coach_email:'Gweaver@simpsonu.edu',assistant_coach1_email:'dmorales@simpsonu.edu'},
+  {name:'Wartburg College',conference:'American River Conference',division:'D3',head_coach_email:'michael.madigan@wartburg.edu',assistant_coach1_email:'christian.coridon@wartburg.edu'},
+  {name:'Nebraska Wesleyan University',conference:'American River Conference',division:'D3',head_coach_email:'bbonilla@nebrwesleyan.edu',assistant_coach1_email:'hsowersb@nebrwesleyan.edu',assistant_coach2_email:'spointon@nebrwesleyan.edu'},
+  // Landmark Conference
+  {name:'Catholic University of America',conference:'Landmark Conference',division:'D3',head_coach_email:'keenanc@cua.edu',assistant_coach1_email:'hellermann@cua.edu',assistant_coach2_email:'fisseha@cua.edu'},
+  {name:'University of Scranton',conference:'Landmark Conference',division:'D3',head_coach_email:'andrew.loughnane@scranton.edu',assistant_coach1_email:'aidan.thornell@scranton.edu'},
+  {name:'Lycoming College',conference:'Landmark Conference',division:'D3',head_coach_email:'schwien@lycoming.edu',assistant_coach1_email:'addalli@lycoming.edu',assistant_coach2_email:'confair@lycoming.edu'},
+  {name:'Juniata College',conference:'Landmark Conference',division:'D3',head_coach_email:'gradyb@juniata.edu',assistant_coach1_email:'mumford@juniata.edu',assistant_coach2_email:'jag100@juniata.edu'},
+  {name:'Goucher College',conference:'Landmark Conference',division:'D3',head_coach_email:'bryan.laut@goucher.edu',assistant_coach1_email:'andrew.list@goucher.edu'},
+  {name:'Drew University',conference:'Landmark Conference',division:'D3',head_coach_email:'larmuth@drew.edu',assistant_coach1_email:'cbarrientos@drew.edu',assistant_coach2_email:'amcclintock@drew.edu'},
+  {name:'Elizabethtown College',conference:'Landmark Conference',division:'D3',head_coach_email:'scheffeye@etown.edu',assistant_coach1_email:'georged@etown.edu'},
+  {name:'Moravian College',conference:'Landmark Conference',division:'D3',head_coach_email:'wilkinsonr@moravian.edu',assistant_coach1_email:'centofantip@moravian.edu',assistant_coach2_email:'venezialej@moravian.edu'},
+  {name:'Susquehanna University',conference:'Landmark Conference',division:'D3',head_coach_email:'findlay@susqu.edu',assistant_coach1_email:'brennant@susqu.edu'},
+  {name:'Wilkes University',conference:'Landmark Conference',division:'D3',head_coach_email:'michael.piranian@wilkes.edu',assistant_coach1_email:'daniel.reid@wilkes.edu'},
+  // Old Dominion AC
+  {name:'Washington and Lee University',conference:'Old Dominion AC',division:'D3',head_coach_email:'lshabazz@wlu.edu',assistant_coach1_email:'jgildea@wlu.edu'},
+  {name:'Hampden-Sydney College',conference:'Old Dominion AC',division:'D3',head_coach_email:'tdinuzzo@hsc.edu',assistant_coach1_email:'alonghurst@hsc.edu',assistant_coach2_email:'YSuzuki@hsc.edu'},
+  {name:'University of Lynchburg',conference:'Old Dominion AC',division:'D3',head_coach_email:'yeager@lynchburg.edu',assistant_coach1_email:'hinkle_j@lynchburg.edu',assistant_coach2_email:'mlotshp855@lynchburg.edu'},
+  {name:'Guilford College',conference:'Old Dominion AC',division:'D3',head_coach_email:'mbair@guilford.edu',assistant_coach1_email:'thomsenw@guilford.edu',assistant_coach2_email:'rrobinson1@guilford.edu'},
+  {name:'Bridgewater College',conference:'Old Dominion AC',division:'D3',head_coach_email:'rbenniso@bridgewater.edu',assistant_coach1_email:'fsibanda@bridgewater.edu'},
+  {name:'Ferrum College',conference:'Old Dominion AC',division:'D3',head_coach_email:'mcureton@ferrum.edu',assistant_coach1_email:'jmorgan3@ferrum.edu'},
+  {name:'Randolph-Macon College',conference:'Old Dominion AC',division:'D3',head_coach_email:'JoshLaux@rmc.edu',assistant_coach1_email:'evanblow@rmc.edu'},
+  {name:'Randolph College',conference:'Old Dominion AC',division:'D3',head_coach_email:'sblue@randolphcollege.edu'},
+  {name:'Roanoke College',conference:'Old Dominion AC',division:'D3',head_coach_email:'pflugrad@roanoke.edu',assistant_coach1_email:'mcampbell@roanoke.edu'},
+  {name:'Shenandoah University',conference:'Old Dominion AC',division:'D3',head_coach_email:'bkates@su.edu',assistant_coach1_email:'joseph.dellestate@su.edu',assistant_coach2_email:'robert.davis@su.edu'},
+  {name:'Virginia Wesleyan University',conference:'Old Dominion AC',division:'D3',head_coach_email:'skohler@vwu.edu',assistant_coach1_email:'bcook@vwu.edu',assistant_coach2_email:'menssoccer@vwu.edu'},
+  {name:'Eastern Mennonite University',conference:'Old Dominion AC',division:'D3',head_coach_email:'justin.carey@emu.edu',assistant_coach1_email:'trevor.swartz@emu.edu'},
+  {name:'Averett University',conference:'Old Dominion AC',division:'D3',head_coach_email:'pawilson@averett.edu'},
+  // Presidents Athletic Conference
+  {name:'Allegheny College',conference:'Presidents Athletic Conference',division:'D3',head_coach_email:'jlichina@allegheny.edu',assistant_coach1_email:'tjones@allegheny.edu'},
+  {name:'Franciscan University of Steubenville',conference:'Presidents Athletic Conference',division:'D3',head_coach_email:'bridenour@franciscan.edu',assistant_coach1_email:'zswope@franciscan.edu'},
+  {name:'Westminster College (PA)',conference:'Presidents Athletic Conference',division:'D3',head_coach_email:'thakargs@westminster.edu',assistant_coach1_email:'tinneysp@westminster.edu',assistant_coach2_email:'haregw@westminster.edu'},
+  {name:'Geneva College',conference:'Presidents Athletic Conference',division:'D3',head_coach_email:'gtdunda@geneva.edu',assistant_coach1_email:'dpyates@geneva.edu'},
+  {name:'Grove City College',conference:'Presidents Athletic Conference',division:'D3',head_coach_email:'mfdreves@gcc.edu',assistant_coach1_email:'ribbeem@gcc.edu'},
+  {name:'Saint Vincent College',conference:'Presidents Athletic Conference',division:'D3',head_coach_email:'matthew.davis@stvincent.edu',assistant_coach1_email:'diron.duah@stvincent.edu',assistant_coach2_email:'cory.northrup@stvincent.edu'},
+  {name:'Thiel College',conference:'Presidents Athletic Conference',division:'D3',head_coach_email:'zwalters@thiel.edu',assistant_coach1_email:'pgeorge@thiel.edu',assistant_coach2_email:'jzajac@thiel.edu'},
+  {name:'Washington and Jefferson College',conference:'Presidents Athletic Conference',division:'D3',head_coach_email:'imcdonald@washjeff.edu',assistant_coach1_email:'ndiaz@washjeff.edu'},
+  {name:'Waynesburg University',conference:'Presidents Athletic Conference',division:'D3',head_coach_email:'treg.lunger@waynesburg.edu',assistant_coach1_email:'brian.stock@waynesburg.edu',assistant_coach2_email:'tyler.mohrbacher2@waynesburg.edu'},
+  {name:'Bethany College',conference:'Presidents Athletic Conference',division:'D3',head_coach_email:'mwolf@bethanywv.edu'},
+  {name:'Chatham University',conference:'Presidents Athletic Conference',division:'D3',head_coach_email:'k.danley@chatham.edu',assistant_coach1_email:'k.robbins@chatham.edu',assistant_coach2_email:'p.hoffman@chatham.edu'},
+  // New Jersey Athletic Conference
+  {name:'Kean University',conference:'New Jersey Athletic Conference',division:'D3',head_coach_email:'munozj@kean.edu',assistant_coach1_email:'lopesph@kean.edu'},
+  {name:'Ramapo College of NJ',conference:'New Jersey Athletic Conference',division:'D3',head_coach_email:'dpinton@ramapo.edu',assistant_coach1_email:'krosenb2@ramapo.edu'},
+  {name:'Rutgers University-Camden',conference:'New Jersey Athletic Conference',division:'D3',head_coach_email:'tim.oswald@camden.rutgers.edu'},
+  {name:'Rutgers University-Newark',conference:'New Jersey Athletic Conference',division:'D3',head_coach_email:'keast@newark.rutgers.edu',assistant_coach1_email:'castroadrian14@gmail.com',assistant_coach2_email:'mcb228@rutgers.edu'},
+  {name:'Stockton University',conference:'New Jersey Athletic Conference',division:'D3',head_coach_email:'ruttlerg@stockton.edu',assistant_coach1_email:'evan.brosniak@stockton.edu'},
+  {name:'The College of NJ',conference:'New Jersey Athletic Conference',division:'D3',head_coach_email:'ringelp1@tcnj.edu'},
+  {name:'William Paterson University',conference:'New Jersey Athletic Conference',division:'D3',head_coach_email:'heitmannm@wpunj.edu'},
+  {name:'Rowan University',conference:'New Jersey Athletic Conference',division:'D3',head_coach_email:'bakers@rowan.edu',assistant_coach1_email:'ossowski@rowan.edu',assistant_coach2_email:'hurffc@rowan.edu'},
+  {name:'Montclair State University',conference:'New Jersey Athletic Conference',division:'D3',head_coach_email:'tumeltyto@montclair.edu',assistant_coach1_email:'cullenj@montclair.edu'},
+  {name:'NJ City University',conference:'New Jersey Athletic Conference',division:'D3',head_coach_email:'bguzman3@njcu.edu',assistant_coach1_email:'menssoccer@njcu.edu'},
+  // State University of NY AC
+  {name:'SUNY Cortland',conference:'State University of NY AC',division:'D3',head_coach_email:'steven.axtell@cortland.edu',assistant_coach1_email:'colby.gay@cortland.edu'},
+  {name:'SUNY Oneonta',conference:'State University of NY AC',division:'D3',head_coach_email:'iain.byrne@oneonta.edu'},
+  {name:'SUNY Fredonia',conference:'State University of NY AC',division:'D3',head_coach_email:'Patrick.Gondek@fredonia.edu',assistant_coach1_email:'smithd@fredonia.edu'},
+  {name:'SUNY New Paltz',conference:'State University of NY AC',division:'D3',head_coach_email:'clancyk@newpaltz.edu'},
+  {name:'SUNY Oswego',conference:'State University of NY AC',division:'D3',head_coach_email:'daniel.kane@oswego.edu'},
+  {name:'SUNY Plattsburgh',conference:'State University of NY AC',division:'D3',head_coach_email:'ctayl012@plattsburgh.edu',assistant_coach1_email:'speargm@plattsburgh.edu'},
+  {name:'SUNY Buffalo State',conference:'State University of NY AC',division:'D3',head_coach_email:'cardilf@buffalostate.edu',assistant_coach1_email:'finna@buffalostate.edu'},
+  {name:'SUNY Potsdam',conference:'State University of NY AC',division:'D3',head_coach_email:'parkeram@potsdam.edu',assistant_coach1_email:'jordantl@potsdam.edu'},
+  {name:'SUNY Canton',conference:'State University of NY AC',division:'D3',head_coach_email:'penrodt@canton.edu',assistant_coach1_email:'yakubum@canton.edu',assistant_coach2_email:'millwardm@canton.edu'},
+  {name:'SUNY Morrisville',conference:'State University of NY AC',division:'D3',head_coach_email:'fonsecca@morrisville.edu',assistant_coach1_email:'schlacz@morrisville.edu',assistant_coach2_email:'gursong@morrisville.edu'},
+  // Collegiate Conference of South
+  {name:'Belhaven University',conference:'Collegiate Conference of South',division:'D3',head_coach_email:'jgledhill@belhaven.edu',assistant_coach1_email:'jward@belhaven.edu',assistant_coach2_email:'cbryan@belhaven.edu'},
+  {name:'Asbury University',conference:'Collegiate Conference of South',division:'D3',head_coach_email:'benjamin.andrews@asbury.edu',assistant_coach1_email:'john.greer@asbury.edu',assistant_coach2_email:'noah.welch@asbury.edu'},
+  {name:'Huntingdon College',conference:'Collegiate Conference of South',division:'D3',head_coach_email:'rspain@hawks.huntingdon.edu'},
+  {name:'Covenant College',conference:'Collegiate Conference of South',division:'D3',head_coach_email:'scott.bosgraf@covenant.edu',assistant_coach1_email:'anthonym.buzzeo@covenant.edu'},
+  {name:'LaGrange College',conference:'Collegiate Conference of South',division:'D3',head_coach_email:'rdickso1@lagrange.edu'},
+  {name:'Piedmont University',conference:'Collegiate Conference of South',division:'D3',head_coach_email:'jstephens@piedmont.edu',assistant_coach1_email:'zernst@piedmont.edu'},
+  {name:'Maryville College',conference:'Collegiate Conference of South',division:'D3',head_coach_email:'pepe.fernandez@maryvillecollege.edu',assistant_coach1_email:'jon.baker@maryvillecollege.edu',assistant_coach2_email:'jameson.elmore@maryvillecollege.edu'},
+  // Commonwealth Coast Conference
+  {name:'Roger Williams University',conference:'Commonwealth Coast Conference',division:'D3',head_coach_email:'jgreenslit@rwu.edu',assistant_coach1_email:'dmajetich@rwu.edu'},
+  {name:'Western New England University',conference:'Commonwealth Coast Conference',division:'D3',head_coach_email:'devin.oneill@wne.edu',assistant_coach1_email:'jeffrey.montagna@wne.edu',assistant_coach2_email:'john.voight@wne.edu'},
+  {name:'Curry College',conference:'Commonwealth Coast Conference',division:'D3',head_coach_email:'pmendel0307@curry.edu',assistant_coach1_email:'michael.madden@curry.edu',assistant_coach2_email:'ethan.trusten@curry.edu'},
+  {name:'Endicott College',conference:'Commonwealth Coast Conference',division:'D3',head_coach_email:'jcalabre@endicott.edu',assistant_coach1_email:'menssoccer@endicott.edu'},
+  {name:'Gordon College',conference:'Commonwealth Coast Conference',division:'D3',head_coach_email:'Kellen.Kasiguran@gordon.edu',assistant_coach1_email:'Andrew.Wade@gordon.edu',assistant_coach2_email:'Todd.McMillan@gordon.edu'},
+  {name:'Nichols College',conference:'Commonwealth Coast Conference',division:'D3',head_coach_email:'chris.traina@nichols.edu',assistant_coach1_email:'eric.gemboski@nichols.edu',assistant_coach2_email:'james.greenwood@nichols.edu'},
+  {name:'Suffolk University',conference:'Commonwealth Coast Conference',division:'D3',head_coach_email:'wmaddock@suffolk.edu'},
+  {name:'Wentworth Institute of Technology',conference:'Commonwealth Coast Conference',division:'D3',head_coach_email:'ericksonc@wit.edu',assistant_coach1_email:'martinsn@wit.edu'},
+  {name:'University of New England',conference:'Commonwealth Coast Conference',division:'D3',head_coach_email:'postergaard@une.edu'},
+  // Coast to Coast AC
+  {name:'University of Mary Washington',conference:'Coast to Coast AC',division:'D3',head_coach_email:'jkilby@umw.edu',assistant_coach1_email:'mwebb@umw.edu'},
+  {name:'Christopher Newport University',conference:'Coast to Coast AC',division:'D3',head_coach_email:'justin.chezem@cnu.edu',assistant_coach1_email:'shawn.trueblood@cnu.edu'},
+  {name:'University of Wisconsin-Platteville',conference:'Coast to Coast AC',division:'D3',head_coach_email:'tinneyje@uwplatt.edu',assistant_coach1_email:'corcoranth@uwplatt.edu'},
+  {name:'University of CA-Santa Cruz',conference:'Coast to Coast AC',division:'D3',head_coach_email:'mnsoccer@ucsc.edu',assistant_coach1_email:'dkamau@ucsc.edu'},
+  {name:'Salisbury University',conference:'Coast to Coast AC',division:'D3',head_coach_email:'zwmacdougall@salisbury.edu',assistant_coach1_email:'jakautzman@salisbury.edu'},
+  {name:'University of Wisconsin-Rock County',conference:'Coast to Coast AC',division:'D3',head_coach_email:'guinna@uww.edu',assistant_coach1_email:'morgandj31@uww.edu'},
+  {name:'Warren Wilson College',conference:'Coast to Coast AC',division:'D3',head_coach_email:'cassidy-degroat@warren-wilson.edu',assistant_coach1_email:'allison-perlroth@warren-wilson.edu',assistant_coach2_email:'valerie-cook@warren-wilson.edu'},
+  // Northwest Conference
+  {name:'Willamette University',conference:'Northwest Conference',division:'D3',head_coach_email:'mdcortiyoung@willamette.edu',assistant_coach1_email:'qnottage@willamette.edu',assistant_coach2_email:'jestarr@willamette.edu'},
+  {name:'Pacific Lutheran University',conference:'Northwest Conference',division:'D3',head_coach_email:'yorkejh@plu.edu',assistant_coach1_email:'bloomsjc@plu.edu',assistant_coach2_email:'voilespg@plu.edu'},
+  {name:'George Fox University',conference:'Northwest Conference',division:'D3',head_coach_email:'pkarver@georgefox.edu',assistant_coach1_email:'igorman@georgefox.edu'},
+  {name:'Lewis and Clark College',conference:'Northwest Conference',division:'D3',head_coach_email:'tursi@lclark.edu',assistant_coach1_email:'lc22-0046@lclark.edu',assistant_coach2_email:'wirwin@lclark.edu'},
+  {name:'Pacific University',conference:'Northwest Conference',division:'D3',head_coach_email:'brandonporter@pacificu.edu',assistant_coach1_email:'shen5807@pacificu.edu',assistant_coach2_email:'kaseysaito@pacificu.edu'},
+  {name:'University of Puget Sound',conference:'Northwest Conference',division:'D3',head_coach_email:'smohn@pugetsound.edu',assistant_coach1_email:'jgjertsen@pugetsound.edu',assistant_coach2_email:'zrtaylor@pugetsound.edu'},
+  {name:'Whitman College',conference:'Northwest Conference',division:'D3',head_coach_email:'cedenojs@whitman.edu',assistant_coach1_email:'belechjl@whitman.edu',assistant_coach2_email:'reesic@whitman.edu'},
+  {name:'Whitworth University',conference:'Northwest Conference',division:'D3',head_coach_email:'kmoon@whitworth.edu',assistant_coach1_email:'dwilliams@whitworth.edu'},
+  {name:'Linfield University',conference:'Northwest Conference',division:'D3',head_coach_email:'aduvall@linfield.edu',assistant_coach1_email:'aponce@linfield.edu'},
+  // Allegheny Mountain CC
+  {name:'Carlow University',conference:'Allegheny Mountain CC',division:'D3',head_coach_email:'afduda@carlow.edu',assistant_coach1_email:'crzappa@carlow.edu'},
+  {name:'Mount Aloysius College',conference:'Allegheny Mountain CC',division:'D3',head_coach_email:'LHutchinson@mtaloy.edu'},
+  {name:'La Roche University',conference:'Allegheny Mountain CC',division:'D3',head_coach_email:'christopher.karwoski@laroche.edu'},
+  {name:'Penn State Erie Behrend',conference:'Allegheny Mountain CC',division:'D3',head_coach_email:'csr5210@psu.edu'},
+  {name:'Penn State Altoona',conference:'Allegheny Mountain CC',division:'D3',head_coach_email:'alb389@psu.edu'},
+  {name:'University of Pittsburgh-Bradford',conference:'Allegheny Mountain CC',division:'D3',head_coach_email:'ntw5@pitt.edu'},
+  {name:'University of Pittsburgh-Greensburg',conference:'Allegheny Mountain CC',division:'D3',head_coach_email:'marcbucci@pitt.edu'},
+  {name:'Hilbert College',conference:'Allegheny Mountain CC',division:'D3',head_coach_email:'Jblack@hilbert.edu',assistant_coach1_email:'sggraham@hilbert.edu'},
+  {name:'SUNY Alfred State',conference:'Allegheny Mountain CC',division:'D3',head_coach_email:'kuhngp@alfredstate.edu',assistant_coach1_email:'clarkcr@alfredstate.edu'},
+  // Centennial Conference
+  {name:'Johns Hopkins University',conference:'Centennial Conference',division:'D3',head_coach_email:'hopkinsmenssoccer@jhu.edu'},
+  {name:'Franklin and Marshall College',conference:'Centennial Conference',division:'D3',head_coach_email:'dan.wagner@fandm.edu',assistant_coach1_email:'donald.spangler@fandm.edu',assistant_coach2_email:'mvanhees@fandm.edu'},
+  {name:'McDaniel College',conference:'Centennial Conference',division:'D3',head_coach_email:'scorrieri@mcdaniel.edu',assistant_coach1_email:'cmdavis@mcdaniel.edu'},
+  {name:'Washington College',conference:'Centennial Conference',division:'D3',head_coach_email:'rdunshee2@washcoll.edu',assistant_coach1_email:'rshera2@washcoll.edu',assistant_coach2_email:'jreinoehl2@washcoll.edu'},
+  {name:'Dickinson College',conference:'Centennial Conference',division:'D3',head_coach_email:'chapoyj@dickinson.edu',assistant_coach1_email:'flannerw@dickinson.edu',assistant_coach2_email:'stoverse@dickinson.edu'},
+  {name:'Gettysburg College',conference:'Centennial Conference',division:'D3',head_coach_email:'mmettric@gettysburg.edu',assistant_coach1_email:'dmalone@gettysburg.edu'},
+  {name:'Haverford College',conference:'Centennial Conference',division:'D3',head_coach_email:'kbrenner@haverford.edu',assistant_coach1_email:'mheim@haverford.edu',assistant_coach2_email:'dioffreda@haverford.edu'},
+  {name:'Muhlenberg College',conference:'Centennial Conference',division:'D3',head_coach_email:'menssoccer@muhlenberg.edu',assistant_coach1_email:'seantopping@muhlenberg.edu',assistant_coach2_email:'tylermadeira@muhlenberg.edu'},
+  {name:'Swarthmore College',conference:'Centennial Conference',division:'D3',head_coach_email:'ewagner1@swarthmore.edu',assistant_coach1_email:'arovito1@swarthmore.edu'},
+  {name:'Ursinus College',conference:'Centennial Conference',division:'D3',head_coach_email:'cklingman@ursinus.edu',assistant_coach1_email:'khaynes@ursinus.edu',assistant_coach2_email:'rmolyneaux@ursinus.edu'},
+  // City University of NY AC
+  {name:'CUNY Lehman College',conference:'City University of NY AC',division:'D3',head_coach_email:'toma.gojcevic@lehman.cuny.edu',assistant_coach1_email:'zoran.milojevic@lehman.cuny.edu'},
+  {name:'CUNY Brooklyn College',conference:'City University of NY AC',division:'D3',head_coach_email:'Luis.Flores@brooklyn.cuny.edu'},
+  {name:'CUNY Baruch College',conference:'City University of NY AC',division:'D3',head_coach_email:'Dmitriy.Kamenshchik@baruch.cuny.edu',assistant_coach1_email:'Roni.Hahitti@baruch.cuny.edu',assistant_coach2_email:'Bryan.Nunez@baruch.cuny.edu'},
+  {name:'CUNY Hunter College',conference:'City University of NY AC',division:'D3',head_coach_email:'dc5092@hunter.cuny.edu',assistant_coach1_email:'cartagenaw44@yahoo.com',assistant_coach2_email:'eer310@nyu.edu'},
+  {name:'CUNY John Jay College',conference:'City University of NY AC',division:'D3',head_coach_email:'cweeks@jjay.cuny.edu',assistant_coach1_email:'jahamiliton@jjay.cuny.edu'},
+  {name:'CUNY City College',conference:'City University of NY AC',division:'D3',head_coach_email:'rogergonzaleznyc@gmail.com',assistant_coach1_email:'bryantibarra01@gmail.com'},
+  {name:'CUNY Medgar Evers College',conference:'City University of NY AC',division:'D3',head_coach_email:'jthelus@gmail.com'},
+  {name:'CUNY York College',conference:'City University of NY AC',division:'D3',head_coach_email:'bchhab901@york.cuny.edu',assistant_coach1_email:'kedihe901@york.cuny.edu'},
+  // North Coast AC
+  {name:'Kenyon College',conference:'North Coast AC',division:'D3',head_coach_email:'wall2@kenyon.edu',assistant_coach1_email:'taljan1@kenyon.edu'},
+  {name:'Ohio Wesleyan University',conference:'North Coast AC',division:'D3',head_coach_email:'jamartin@owu.edu',assistant_coach1_email:'mdweiss@owu.edu',assistant_coach2_email:'hdgomez@owu.edu'},
+  {name:'Wittenberg University',conference:'North Coast AC',division:'D3',head_coach_email:'burgessd@wittenberg.edu',assistant_coach1_email:'shariffh@wittenberg.edu',assistant_coach2_email:'boldtj@wittenberg.edu'},
+  {name:'DePauw University',conference:'North Coast AC',division:'D3',head_coach_email:'stevenmccarthy@depauw.edu',assistant_coach1_email:'teddykolesnikov@depauw.edu'},
+  {name:'Wabash College',conference:'North Coast AC',division:'D3',head_coach_email:'kellerc@wabash.edu',assistant_coach1_email:'olivasj@wabash.edu',assistant_coach2_email:'kleinj@wabash.edu'},
+  {name:'Denison University',conference:'North Coast AC',division:'D3',head_coach_email:'biancob@denison.edu',assistant_coach1_email:'gallaghert@denison.edu'},
+  {name:'Oberlin College',conference:'North Coast AC',division:'D3',head_coach_email:'blake.new@oberlin.edu',assistant_coach1_email:'amiroberlinsc@gmail.com'},
+  {name:'The College of Wooster',conference:'North Coast AC',division:'D3',head_coach_email:'azidron@wooster.edu',assistant_coach1_email:'jgiloth@wooster.edu'},
+  {name:'Hiram College',conference:'North Coast AC',division:'D3',head_coach_email:'ChmuraJ@hiram.edu',assistant_coach1_email:'HartupPP@hiram.edu',assistant_coach2_email:'NajjarOA@hiram.edu'},
+  // University Athletic Association
+  {name:'University of Chicago',conference:'University Athletic Association',division:'D3',head_coach_email:'menssoccer@uchicago.edu'},
+  {name:'Emory University',conference:'University Athletic Association',division:'D3',head_coach_email:'cgreine@emory.edu',assistant_coach1_email:'ceschmi@emory.edu'},
+  {name:'Brandeis University',conference:'University Athletic Association',division:'D3',head_coach_email:'menssoccer@brandeis.edu'},
+  {name:'Washington University in St. Louis',conference:'University Athletic Association',division:'D3',head_coach_email:'bordelon@wustl.edu',assistant_coach1_email:'jack.m@wustl.edu',assistant_coach2_email:'leeker@wustl.edu'},
+  {name:'New York University',conference:'University Athletic Association',division:'D3',head_coach_email:'kaw12@nyu.edu',assistant_coach1_email:'jhk765@nyu.edu',assistant_coach2_email:'jar30@nyu.edu'},
+  {name:'University of Rochester',conference:'University Athletic Association',division:'D3',head_coach_email:'bc006j@sports.rochester.edu',assistant_coach1_email:'sstreb3@ur.rochester.edu',assistant_coach2_email:'acrawf10@sports.rochester.edu'},
+  {name:'Case Western Reserve University',conference:'University Athletic Association',division:'D3',head_coach_email:'ccp51@case.edu',assistant_coach1_email:'fxm272@case.edu'},
+  {name:'Carnegie Mellon University',conference:'University Athletic Association',division:'D3',head_coach_email:'bhbowman@andrew.cmu.edu',assistant_coach1_email:'rmacklin@andrew.cmu.edu',assistant_coach2_email:'spencerw@andrew.cmu.edu'},
+  // Upper Midwest AC
+  {name:'University of Wisconsin-Superior',conference:'Upper Midwest AC',division:'D3',head_coach_email:'jmooney@uwsuper.edu',assistant_coach1_email:'npiazza@uwsuper.edu',assistant_coach2_email:'jmyran@uwsuper.edu'},
+  {name:'Bethany Lutheran College',conference:'Upper Midwest AC',division:'D3',head_coach_email:'Derick.Lyngholm@blc.edu',assistant_coach1_email:'Ryan.Bolte@blc.edu'},
+  {name:'Martin Luther College',conference:'Upper Midwest AC',division:'D3',head_coach_email:'grundmtd@mlc-wels.edu',assistant_coach1_email:'schmolnc@mlc-wels.edu'},
+  {name:'University of Minnesota-Morris',conference:'Upper Midwest AC',division:'D3',head_coach_email:'ordell@morris.umn.edu',assistant_coach1_email:'miche662@morris.umn.edu'},
+  {name:'North Central University',conference:'Upper Midwest AC',division:'D3',head_coach_email:'kcbleyer@northcentral.edu',assistant_coach1_email:'ecmuelle@northcentral.edu'},
+  {name:'University of Northwestern-St. Paul',conference:'Upper Midwest AC',division:'D3',head_coach_email:'gdwheaton@unwsp.edu',assistant_coach1_email:'btwildman@unwsp.edu'},
+  {name:'Crown College',conference:'Upper Midwest AC',division:'D3',head_coach_email:'hoslera@crown.edu'},
+  {name:'Northland College',conference:'Upper Midwest AC',division:'D3',head_coach_email:'ldennis@northland.edu'},
+  // St. Louis Intercollegiate AC
+  {name:'Lyon College',conference:'St. Louis Intercollegiate AC',division:'D3',head_coach_email:'emanuel.santos@lyon.edu',assistant_coach1_email:'robert.pope@lyon.edu',assistant_coach2_email:'ronaldo.jacob@lyon.edu'},
+  {name:'Greenville University',conference:'St. Louis Intercollegiate AC',division:'D3',head_coach_email:'chris.swift@greenville.edu',assistant_coach1_email:'santi.alzate@greenville.edu',assistant_coach2_email:'eric.miller@greenville.edu'},
+  {name:'Blackburn College',conference:'St. Louis Intercollegiate AC',division:'D3',head_coach_email:'josh.oswald@blackburn.edu'},
+  {name:'Principia College',conference:'St. Louis Intercollegiate AC',division:'D3',head_coach_email:'markus.bathelt@principia.edu',assistant_coach1_email:'lee.barron@principia.edu'},
+  {name:'Fontbonne University',conference:'St. Louis Intercollegiate AC',division:'D3',head_coach_email:'dalberty@fontbonne.edu'},
+  {name:'Webster University',conference:'St. Louis Intercollegiate AC',division:'D3',head_coach_email:'nenadcuric@webster.edu',assistant_coach1_email:'samuelgomez@webster.edu',assistant_coach2_email:'alenbradaric@webster.edu'},
+  {name:'Westminster College (MO)',conference:'St. Louis Intercollegiate AC',division:'D3',head_coach_email:'jpittman@westminsteru.edu',assistant_coach1_email:'mbruce-burgess@westminsteru.edu',assistant_coach2_email:'nroberson@westminsteru.edu'},
+  {name:'Eureka College',conference:'St. Louis Intercollegiate AC',division:'D3',head_coach_email:'rwoodside@eureka.edu',assistant_coach1_email:'cnelson@eureka.edu',assistant_coach2_email:'awoodside@eureka.edu'},
+  {name:'Spalding University',conference:'St. Louis Intercollegiate AC',division:'D3',head_coach_email:'aboyer01@spalding.edu',assistant_coach1_email:'madkinsestes@spalding.edu',assistant_coach2_email:'lseetane@spalding.edu'},
+  // Michigan Intercollegiate AA
+  {name:'Calvin University',conference:'Michigan Intercollegiate AA',division:'D3',head_coach_email:'wrs8@calvin.edu'},
+  {name:'Adrian College',conference:'Michigan Intercollegiate AA',division:'D3',head_coach_email:'cmiles@adrian.edu',assistant_coach1_email:'rgibson@adrian.edu'},
+  {name:'Trine University',conference:'Michigan Intercollegiate AA',division:'D3',head_coach_email:'mcclementst@trine.edu',assistant_coach1_email:'coolt@trine.edu'},
+  {name:'Albion College',conference:'Michigan Intercollegiate AA',division:'D3',head_coach_email:'wmolenaar@albion.edu',assistant_coach1_email:'rmoller@albion.edu'},
+  {name:'Alma College',conference:'Michigan Intercollegiate AA',division:'D3',head_coach_email:'newbyaw@alma.edu',assistant_coach1_email:'elsysyma@alma.edu'},
+  {name:'Hope College',conference:'Michigan Intercollegiate AA',division:'D3',head_coach_email:'blahnik@hope.edu'},
+  {name:'Kalamazoo College',conference:'Michigan Intercollegiate AA',division:'D3',head_coach_email:'jonathan.nord@kzoo.edu'},
+  {name:'Olivet College',conference:'Michigan Intercollegiate AA',division:'D3',head_coach_email:'jmforsythe@olivet.edu',assistant_coach1_email:'arlatorre@olivet.edu',assistant_coach2_email:'sprana@olivet.edu'},
+  // Southern Soccer Association
+  {name:'Millsaps College',conference:'Southern Soccer Association',division:'D3',head_coach_email:'johnsgl@millsaps.edu',assistant_coach1_email:'roberse1@millsaps.edu'},
+  {name:'Hendrix College',conference:'Southern Soccer Association',division:'D3',head_coach_email:'kern@hendrix.edu'},
+  {name:'Berry College',conference:'Southern Soccer Association',division:'D3',head_coach_email:'rvardy@berry.edu',assistant_coach1_email:'kjacobs@berry.edu'},
+  {name:'Oglethorpe University',conference:'Southern Soccer Association',division:'D3',head_coach_email:'jakin@oglethorpe.edu',assistant_coach1_email:'mvilas@oglethorpe.edu',assistant_coach2_email:'rquegan@oglethorpe.edu'},
+  {name:'Centre College',conference:'Southern Soccer Association',division:'D3',head_coach_email:'jeb.burch@centre.edu',assistant_coach1_email:'xavier.tomlin@centre.edu'},
+  {name:'Sewanee - The University of the South',conference:'Southern Soccer Association',division:'D3',head_coach_email:'dapacell@sewanee.edu',assistant_coach1_email:'lapatber@sewanee.edu'},
+  {name:'Rhodes College',conference:'Southern Soccer Association',division:'D3',head_coach_email:'lambm@rhodes.edu',assistant_coach1_email:'kirkt@rhodes.edu'},
+  {name:'Birmingham Southern College',conference:'Southern Soccer Association',division:'D3',head_coach_email:'gvinson@bsc.edu',assistant_coach1_email:'cljennin@bsc.edu'},
+  // College Conference of Illinois
+  {name:'North Central College',conference:'College Conference of Illinois',division:'D3',head_coach_email:'efuschino@noctrl.edu',assistant_coach1_email:'ajmoyes@noctrl.edu',assistant_coach2_email:'twsmith3188@noctrl.edu'},
+  {name:'North Park University',conference:'College Conference of Illinois',division:'D3',head_coach_email:'kgrahn@northpark.edu',assistant_coach1_email:'krhahn@northpark.edu',assistant_coach2_email:'bacastro2@northpark.edu'},
+  {name:'Illinois Wesleyan University',conference:'College Conference of Illinois',division:'D3',head_coach_email:'kschauls@iwu.edu',assistant_coach1_email:'cjones2@iwu.edu'},
+  {name:'Augustana College (IL)',conference:'College Conference of Illinois',division:'D3',head_coach_email:'chadflanders@augustana.edu',assistant_coach1_email:'brantmueller@augustana.edu',assistant_coach2_email:'ericstewart@augustana.edu'},
+  {name:'Elmhurst University',conference:'College Conference of Illinois',division:'D3',head_coach_email:'tim.dean@elmhurst.edu',assistant_coach1_email:'John.Cappuccitti@elmhurst.edu',assistant_coach2_email:'jlovr0772@365.elmhurst.edu'},
+  {name:'Millikin University',conference:'College Conference of Illinois',division:'D3',head_coach_email:'cjward@millikin.edu',assistant_coach1_email:'ehiggins@millikin.edu'},
+  {name:'Wheaton College (IL)',conference:'College Conference of Illinois',division:'D3',head_coach_email:'steve.mccrath@wheaton.edu',assistant_coach1_email:'dylan.milkent@wheaton.edu'},
+  {name:'Carroll University',conference:'College Conference of Illinois',division:'D3',head_coach_email:'akohel@carrollu.edu'},
+  {name:'Carthage College',conference:'College Conference of Illinois',division:'D3',head_coach_email:'pleese@carthage.edu',assistant_coach1_email:'cbrown5@carthage.edu'},
+  // American Southwest Conference
+  {name:'University of Mary Hardin-Baylor',conference:'American Southwest Conference',division:'D3',head_coach_email:'ballen@umhb.edu',assistant_coach1_email:'mshaheed@umhb.edu',assistant_coach2_email:'seth.yurgel@umhb.edu'},
+  {name:'East Texas Baptist University',conference:'American Southwest Conference',division:'D3',head_coach_email:'chrisc@etbu.edu',assistant_coach1_email:'jburke@etbu.edu',assistant_coach2_email:'gabriela@etbu.edu'},
+  {name:'Hardin-Simmons University',conference:'American Southwest Conference',division:'D3',head_coach_email:'brad.bankhead@hsutx.edu',assistant_coach1_email:'austin.wills@hsutx.edu'},
+  {name:'Howard Payne University',conference:'American Southwest Conference',division:'D3',head_coach_email:'bmcgibeny@hputx.edu',assistant_coach1_email:'Luis.desantiago@hputx.edu',assistant_coach2_email:'joshua.redding@hputx.edu'},
+  {name:'LeTourneau University',conference:'American Southwest Conference',division:'D3',head_coach_email:'bradyvanholland@letu.edu',assistant_coach1_email:'timothylee@letu.edu'},
+  // Southern CA Intercollegiate AC
+  {name:'Chapman University',conference:'Southern CA Intercollegiate AC',division:'D3',head_coach_email:'carrillo@chapman.edu',assistant_coach1_email:'aguinald@chapman.edu',assistant_coach2_email:'steal@chapman.edu'},
+  {name:'California Lutheran University',conference:'Southern CA Intercollegiate AC',division:'D3',head_coach_email:'miguelruiz@callutheran.edu',assistant_coach1_email:'sjsilveira@callutheran.edu',assistant_coach2_email:'jamieharris@callutheran.edu'},
+  {name:'Whittier College',conference:'Southern CA Intercollegiate AC',division:'D3',head_coach_email:'sharwell@whittier.edu',assistant_coach1_email:'elozano1@whittier.edu',assistant_coach2_email:'pmcdonal@poets.whittier.edu'},
+  {name:'California Institute of Technology',conference:'Southern CA Intercollegiate AC',division:'D3',head_coach_email:'dgillis@caltech.edu',assistant_coach1_email:'rockne@caltech.edu'},
+  {name:'Claremont McKenna College',conference:'Southern CA Intercollegiate AC',division:'D3',head_coach_email:'edward.cartee@cms.claremont.edu',assistant_coach1_email:'alex.walsh@cms.claremont.edu',assistant_coach2_email:'matthew.kemp@cms.claremont.edu'},
+  {name:'Occidental College',conference:'Southern CA Intercollegiate AC',division:'D3',head_coach_email:'lafaurie@oxy.edu',assistant_coach1_email:'bwright2@oxy.edu',assistant_coach2_email:'fsegalini@oxy.edu'},
+  {name:'Pomona College',conference:'Southern CA Intercollegiate AC',division:'D3',head_coach_email:'william.swartz@pomona.edu',assistant_coach1_email:'jennifer.clark@pomona.edu',assistant_coach2_email:'jorge.guillen-lopez@pomona.edu'},
+  {name:'University of Redlands',conference:'Southern CA Intercollegiate AC',division:'D3',head_coach_email:'ralph_perez@redlands.edu',assistant_coach1_email:'cody_carlson@redlands.edu'},
+  {name:'University of La Verne',conference:'Southern CA Intercollegiate AC',division:'D3',head_coach_email:'tpersson@laverne.edu',assistant_coach1_email:'mditta@laverne.edu'},
+  // Middle Atlantic CC
+  {name:'Messiah University',conference:'Middle Atlantic CC',division:'D3',head_coach_email:'bmccarty@messiah.edu',assistant_coach1_email:'afaro@messiah.edu'},
+  {name:'Albright College',conference:'Middle Atlantic CC',division:'D3',head_coach_email:'pstanco@albright.edu',assistant_coach1_email:'gglembocki@albright.edu',assistant_coach2_email:'ngarofalo@albright.edu'},
+  {name:'Hood College',conference:'Middle Atlantic CC',division:'D3',head_coach_email:'gmoore@hood.edu',assistant_coach1_email:'djiki@hood.edu',assistant_coach2_email:'jod4@hood.edu'},
+  {name:'Stevenson University',conference:'Middle Atlantic CC',division:'D3',head_coach_email:'cjohnson59@stevenson.edu',assistant_coach1_email:'dferreira2@stevenson.edu',assistant_coach2_email:'bradleysellar@stevenson.edu'},
+  {name:'Alvernia University',conference:'Middle Atlantic CC',division:'D3',head_coach_email:'casey.moore@alvernia.edu',assistant_coach1_email:'robert.cairns@alvernia.edu',assistant_coach2_email:'andrew.mcginley@alvernia.edu'},
+  {name:'Widener University',conference:'Middle Atlantic CC',division:'D3',head_coach_email:'rliberati@widener.edu',assistant_coach1_email:'jmwelsh@widener.edu',assistant_coach2_email:'aaaxtman@widener.edu'},
+  {name:'Eastern University',conference:'Middle Atlantic CC',division:'D3',head_coach_email:'luca.mellor@eastern.edu',assistant_coach1_email:'Alec.Anselmo@eastern.edu',assistant_coach2_email:'derek.buhrman@eastern.edu'},
+  {name:'York College of PA',conference:'Middle Atlantic CC',division:'D3',head_coach_email:'ngibboney@ycp.edu',assistant_coach1_email:'jbarton7@ycp.edu',assistant_coach2_email:'mjarviejr@ycp.edu'},
+  // USA South Atlantic Conference
+  {name:'Brevard College',conference:'USA South Atlantic Conference',division:'D3',head_coach_email:'dannaha@brevard.edu',assistant_coach1_email:'pintonetomd@brevard.edu',assistant_coach2_email:'ocallasg@brevard.edu'},
+  {name:'North Carolina Wesleyan University',conference:'USA South Atlantic Conference',division:'D3',head_coach_email:'mbowman@ncwu.edu',assistant_coach1_email:'chall@ncwu.edu'},
+  {name:'Pfeiffer University',conference:'USA South Atlantic Conference',division:'D3',head_coach_email:'tony.faticoni@pfeiffer.edu',assistant_coach1_email:'scott.martin@pfeiffer.edu'},
+  {name:'Greensboro College',conference:'USA South Atlantic Conference',division:'D3',head_coach_email:'manbi.nyepon@greensboro.edu',assistant_coach1_email:'timothy.mcguire@greensboro.edu',assistant_coach2_email:'parker.spesock@greensboro.edu'},
+  {name:'Methodist University',conference:'USA South Atlantic Conference',division:'D3',head_coach_email:'jterranova@methodist.edu'},
+  {name:'William Peace University',conference:'USA South Atlantic Conference',division:'D3',head_coach_email:'rthuber@peace.edu',assistant_coach1_email:'operalta2@peace.edu'},
+  {name:'Mary Baldwin University',conference:'USA South Atlantic Conference',division:'D3',head_coach_email:'fejuarez@marybaldwin.edu'},
+  {name:'Southern Virginia University',conference:'USA South Atlantic Conference',division:'D3',head_coach_email:'payden.pemberton@svu.edu',assistant_coach1_email:'jay.zachariah@svu.edu',assistant_coach2_email:'jeffrey.tomlin@svu.edu'},
+  // North Atlantic Conference
+  {name:'Husson University',conference:'North Atlantic Conference',division:'D3',head_coach_email:'bermudezcar@husson.edu'},
+  {name:'Thomas College',conference:'North Atlantic Conference',division:'D3',head_coach_email:'kyle.fletcher@thomas.edu',assistant_coach1_email:'jim.evans@thomas.edu',assistant_coach2_email:'kiaran.mccormack@thomas.edu'},
+  {name:'Lesley University',conference:'North Atlantic Conference',division:'D3',head_coach_email:'andre.martins@lesley.edu',assistant_coach1_email:'afarago@lesley.edu',assistant_coach2_email:'mmaimon2@lesley.edu'},
+  {name:'SUNY Delhi',conference:'North Atlantic Conference',division:'D3',head_coach_email:'esposiml@delhi.edu'},
+  {name:'Vermont State University-Johnson',conference:'North Atlantic Conference',division:'D3',head_coach_email:'zachary.blaser@vermontstate.edu'},
+  {name:'Vermont State University-Lyndon',conference:'North Atlantic Conference',division:'D3',head_coach_email:'zachary.blaser@vermontstate.edu'},
+  {name:'University of Maine at Farmington',conference:'North Atlantic Conference',division:'D3',head_coach_email:'blake.hart@maine.edu'},
+  {name:'Maine Maritime Academy',conference:'North Atlantic Conference',division:'D3',head_coach_email:'billy.shannon@mma.edu'},
+  {name:'University of Maine at Presque Isle',conference:'North Atlantic Conference',division:'D3',head_coach_email:'alan.gordon@maine.edu'},
+  {name:'SUNY Cobleskill',conference:'North Atlantic Conference',division:'D3',head_coach_email:'MachadJM@Cobleskill.edu',assistant_coach1_email:'WilliaMK@Cobleskill.edu'},
+  // Skyline Conference
+  {name:'US Merchant Marine Academy',conference:'Skyline Conference',division:'D3',head_coach_email:'mccarthya@usmma.edu',assistant_coach1_email:'gwytherd@usmma.edu'},
+  {name:'Yeshiva University',conference:'Skyline Conference',division:'D3',head_coach_email:'zef.kabashi@yu.edu',assistant_coach1_email:'john.schatz@yu.edu'},
+  {name:"St. Joseph's College-Long Island",conference:'Skyline Conference',division:'D3',head_coach_email:'rgomez@sjny.edu',assistant_coach1_email:'jpyatsky@sjcny.edu'},
+  {name:'Mount Saint Mary College',conference:'Skyline Conference',division:'D3',head_coach_email:'kevin.longacre@msmc.edu',assistant_coach1_email:'joseph.dolan@msmc.edu'},
+  {name:'Sarah Lawrence College',conference:'Skyline Conference',division:'D3',head_coach_email:'ebrandsdorfer@sarahlawrence.edu',assistant_coach1_email:'aabolfazlli@sarahlawrence.edu'},
+  {name:"St. Joseph's College-NY",conference:'Skyline Conference',division:'D3',head_coach_email:'abrunengo@sjny.edu',assistant_coach1_email:'snaula@sjny.edu',assistant_coach2_email:'aoliveros@sjny.edu'},
+  {name:'Farmingdale State College',conference:'Skyline Conference',division:'D3',head_coach_email:'schimpc@farmingdale.edu',assistant_coach1_email:'danettvl@farmingdale.edu'},
+  {name:'SUNY Purchase College',conference:'Skyline Conference',division:'D3',head_coach_email:'george.gjokaj@purchase.edu',assistant_coach1_email:'Kevin.ipina@purchase.edu',assistant_coach2_email:'brian.hufnagel@purchase.edu'},
+  {name:'Manhattanville College',conference:'Skyline Conference',division:'D3',head_coach_email:'sean.reilly@mville.edu'},
+  {name:'College of Mount Saint Vincent',conference:'Skyline Conference',division:'D3',head_coach_email:'matthew.davis@stvincent.edu',assistant_coach1_email:'diron.duah@stvincent.edu',assistant_coach2_email:'cory.northrup@stvincent.edu'},
+  {name:'SUNY Old Westbury',conference:'Skyline Conference',division:'D3',head_coach_email:'diricoj@oldwestbury.edu',assistant_coach1_email:'palumbof@oldwestbury.edu',assistant_coach2_email:'stroutm@oldwestbury.edu'},
+  {name:'SUNY Maritime College',conference:'Skyline Conference',division:'D3',head_coach_email:'mwatson@sunymaritime.edu',assistant_coach1_email:'kkurtz@sunymaritime.edu',assistant_coach2_email:'alaurenzano@sunymaritime.edu'},
+  // Heartland Collegiate AC
+  {name:'Rose-Hulman Institute of Technology',conference:'Heartland Collegiate AC',division:'D3',head_coach_email:'helliwel@rose-hulman.edu',assistant_coach1_email:'delaney@rose-hulman.edu'},
+  {name:'Earlham College',conference:'Heartland Collegiate AC',division:'D3',head_coach_email:'gustiaa@earlham.edu',assistant_coach1_email:'amoroja@earlham.edu',assistant_coach2_email:'messero@earlham.edu'},
+  {name:'Franklin College',conference:'Heartland Collegiate AC',division:'D3',head_coach_email:'JHughes@franklincollege.edu'},
+  {name:'Hanover College',conference:'Heartland Collegiate AC',division:'D3',head_coach_email:'wilkerson@hanover.edu'},
+  {name:'Manchester University',conference:'Heartland Collegiate AC',division:'D3',head_coach_email:'cmbrooks@manchester.edu',assistant_coach1_email:'mroop@manchester.edu'},
+  {name:'Berea College',conference:'Heartland Collegiate AC',division:'D3',head_coach_email:'hofmeisterr@berea.edu',assistant_coach1_email:'westw@berea.edu'},
+  {name:'Transylvania University',conference:'Heartland Collegiate AC',division:'D3',head_coach_email:'bfederici@transy.edu',assistant_coach1_email:'ddangelo@transy.edu'},
+  {name:'Defiance College',conference:'Heartland Collegiate AC',division:'D3',head_coach_email:'hzar@defiance.edu',assistant_coach1_email:'cmacklin@defiance.edu'},
+  {name:'Mount Saint Joseph University',conference:'Heartland Collegiate AC',division:'D3',head_coach_email:'anthony.clark@msj.edu'},
+  {name:'Anderson University (IN)',conference:'Heartland Collegiate AC',division:'D3',head_coach_email:'stfridley@anderson.edu'},
+  {name:'Bluffton University',conference:'Heartland Collegiate AC',division:'D3',head_coach_email:'kaighins@bluffton.edu',assistant_coach1_email:'sobhyh@bluffton.edu'},
+  // Southern Collegiate AC
+  {name:'University of St. Thomas (TX)',conference:'Southern Collegiate AC',division:'D3',head_coach_email:'ernesto.ramirez@stthom.edu'},
+  {name:'Colorado College',conference:'Southern Collegiate AC',division:'D3',head_coach_email:'scott.palguta@coloradocollege.edu',assistant_coach1_email:'selvert@coloradocollege.edu'},
+  {name:'Centenary College of Louisiana',conference:'Southern Collegiate AC',division:'D3',head_coach_email:'kwhite@centenary.edu',assistant_coach1_email:'thaney@centenary.edu'},
+  {name:'Austin College',conference:'Southern Collegiate AC',division:'D3',head_coach_email:'tgoyen@austincollege.edu',assistant_coach1_email:'pgallaga@austincollege.edu'},
+  {name:'Schreiner University',conference:'Southern Collegiate AC',division:'D3',head_coach_email:'dbauer@schreiner.edu',assistant_coach1_email:'wmunger@schreiner.edu',assistant_coach2_email:'bwhitiak@schreiner.edu'},
+  {name:'Southwestern University',conference:'Southern Collegiate AC',division:'D3',head_coach_email:'normand@southwestern.edu',assistant_coach1_email:'pilarskid@southwestern.edu'},
+  {name:'Texas Lutheran University',conference:'Southern Collegiate AC',division:'D3',head_coach_email:'esalazar@tlu.edu',assistant_coach1_email:'jrflores@tlu.edu',assistant_coach2_email:'bwilson@tlu.edu'},
+  {name:'Trinity University',conference:'Southern Collegiate AC',division:'D3',head_coach_email:'pmcginla@trinity.edu',assistant_coach1_email:'mkirk@trinity.edu',assistant_coach2_email:'pblank@trinity.edu'},
+  {name:'University of Dallas',conference:'Southern Collegiate AC',division:'D3',head_coach_email:'hoffmann@udallas.edu',assistant_coach1_email:'jhaywood@udallas.edu'},
+  {name:'University of the Ozarks',conference:'Southern Collegiate AC',division:'D3',head_coach_email:'abrueckner@ozarks.edu',assistant_coach1_email:'smena@ozarks.edu'},
+  {name:'Concordia University-Texas',conference:'Southern Collegiate AC',division:'D3',head_coach_email:'jordan.parron@concordia.edu',assistant_coach1_email:'russell.gray@concordia.edu'},
+  {name:'McMurry University',conference:'Southern Collegiate AC',division:'D3',head_coach_email:'lambeck.mike@mcm.edu'},
+  // Wisconsin Intercollegiate AC
+  {name:'University of Wisconsin-Eau Claire',conference:'Wisconsin Intercollegiate AC',division:'D3',head_coach_email:'holmc@uwec.edu',assistant_coach1_email:'shirleaw@uwec.edu',assistant_coach2_email:'nettledj@uwec.edu'},
+  {name:'University of Wisconsin-Stout',conference:'Wisconsin Intercollegiate AC',division:'D3',head_coach_email:'rodriguezma@uwstout.edu',assistant_coach1_email:'schnobrichal@uwstout.edu',assistant_coach2_email:'alnaelis@uwstout.edu'},
+  {name:'University of Wisconsin-River Falls',conference:'Wisconsin Intercollegiate AC',division:'D3',head_coach_email:'evan.sassano@uwrf.edu',assistant_coach1_email:'bret.day@uwrf.edu',assistant_coach2_email:'adolfo.gonzalez@uwrf.edu'},
+  {name:'University of Wisconsin-Stevens Point',conference:'Wisconsin Intercollegiate AC',division:'D3',head_coach_email:'jkayser@uwsp.edu'},
+  // Liberty League
+  {name:'Rensselaer Polytechnic Institute',conference:'Liberty League',division:'D3',head_coach_email:'clinta@rpi.edu',assistant_coach1_email:'boehnj@rpi.edu',assistant_coach2_email:'maruss@rpi.edu'},
+  {name:'Bard College',conference:'Liberty League',division:'D3',head_coach_email:'tkostecky@bard.edu',assistant_coach1_email:'jhofstede@bard.edu'},
+  {name:'Hobart and William Smith Colleges',conference:'Liberty League',division:'D3',head_coach_email:'griffin@hws.edu',assistant_coach1_email:'brandell@hws.edu'},
+  {name:'Ithaca College',conference:'Liberty League',division:'D3',head_coach_email:'geldridge@ithaca.edu',assistant_coach1_email:'ncalo@ithaca.edu',assistant_coach2_email:'ncosentinolanari@ithaca.edu'},
+  {name:'Rochester Institute of Technology',conference:'Liberty League',division:'D3',head_coach_email:'bill.garno@rit.edu',assistant_coach1_email:'yvlatl@rit.edu',assistant_coach2_email:'kxmatl@rit.edu'},
+  {name:'St. Lawrence University',conference:'Liberty League',division:'D3',head_coach_email:'mtoshack@stlawu.edu',assistant_coach1_email:'nhanna@stlawu.edu',assistant_coach2_email:'eshinnick@stlawu.edu'},
+  {name:'Skidmore College',conference:'Liberty League',division:'D3',head_coach_email:'bradcampion@skidmore.edu',assistant_coach1_email:'ethangunty@skidmore.edu',assistant_coach2_email:'jakenatola@skidmore.edu'},
+  {name:'Union College (NY)',conference:'Liberty League',division:'D3'},
+  {name:'Vassar College',conference:'Liberty League',division:'D3',head_coach_email:'jhood@vassar.edu',assistant_coach1_email:'ampasiakos@vassar.edu'},
+  {name:'Clarkson University',conference:'Liberty League',division:'D3',head_coach_email:'acaprini@clarkson.edu',assistant_coach1_email:'cojwalke@clarkson.edu'},
+  // Massachusetts State CAC
+  {name:'Worcester State University',conference:'Massachusetts State CAC',division:'D3',head_coach_email:'ahowarth@worcester.edu'},
+  {name:'Bridgewater State University',conference:'Massachusetts State CAC',division:'D3',head_coach_email:'kbadams@bridgew.edu',assistant_coach1_email:'dacostav777@gmail.com',assistant_coach2_email:'fbeckmann@bridgew.edu'},
+  {name:'Massachusetts College of Liberal Arts',conference:'Massachusetts State CAC',division:'D3',head_coach_email:'a.hildabrand@mcla.edu',assistant_coach1_email:'matthew.robinson@mcla.edu'},
+  {name:'Salem State University',conference:'Massachusetts State CAC',division:'D3',head_coach_email:'mcorreia@salemstate.edu'},
+  {name:'Anna Maria College',conference:'Massachusetts State CAC',division:'D3',head_coach_email:'JDincecco@annamaria.edu',assistant_coach1_email:'BrunoPivadeCastro@annamaria.edu'},
+  {name:'Fitchburg State University',conference:'Massachusetts State CAC',division:'D3',head_coach_email:'bhosey@fitchburgstate.edu',assistant_coach1_email:'mottman@fitchburgstate.edu',assistant_coach2_email:'sjaramil@fitchburgstate.edu'},
+  {name:'Framingham State University',conference:'Massachusetts State CAC',division:'D3',head_coach_email:'agabbard@framingham.edu',assistant_coach1_email:'cmigre@framingham.edu',assistant_coach2_email:'zschultz@framingham.edu'},
+  {name:'Massachusetts Maritime Academy',conference:'Massachusetts State CAC',division:'D3',head_coach_email:'gperry@maritime.edu'},
+  {name:'Westfield State University',conference:'Massachusetts State CAC',division:'D3',head_coach_email:'cstreeter@westfield.ma.edu'},
+  // Minnesota Intercollegiate AC
+  {name:'Gustavus Adolphus College',conference:'Minnesota Intercollegiate AC',division:'D3',head_coach_email:'tyleroliver@gustavus.edu',assistant_coach1_email:'heinen@gustavus.edu',assistant_coach2_email:'davidjansen@gustavus.edu'},
+  {name:'St. Olaf College',conference:'Minnesota Intercollegiate AC',division:'D3',head_coach_email:'oliver3@stolaf.edu',assistant_coach1_email:'gibbon4@stolaf.edu',assistant_coach2_email:'moenin1@stolaf.edu'},
+  {name:'Bethel University (MN)',conference:'Minnesota Intercollegiate AC',division:'D3',head_coach_email:'j-iwaszkowiec@bethel.edu'},
+  {name:'Carleton College',conference:'Minnesota Intercollegiate AC',division:'D3',head_coach_email:'rcarlson@carleton.edu',assistant_coach1_email:'joseph.hartwell@gmail.com'},
+  {name:'Concordia College-Moorhead',conference:'Minnesota Intercollegiate AC',division:'D3',head_coach_email:'jmhedin@cord.edu'},
+  {name:'Hamline University',conference:'Minnesota Intercollegiate AC',division:'D3',head_coach_email:'toliver02@hamline.edu'},
+  {name:'Macalester College',conference:'Minnesota Intercollegiate AC',division:'D3',head_coach_email:'golson1@macalester.edu',assistant_coach1_email:'ocampbel@macalester.edu'},
+  {name:"St. John's University (MN)",conference:'Minnesota Intercollegiate AC',division:'D3',head_coach_email:'tflintham@csbsju.edu'},
+  {name:"St. Mary's University of Minnesota",conference:'Minnesota Intercollegiate AC',division:'D3',head_coach_email:'jpucci@smumn.edu',assistant_coach1_email:'lbarbosa@smumn.edu'},
+  {name:'College of St. Scholastica',conference:'Minnesota Intercollegiate AC',division:'D3',head_coach_email:'bchastey@css.edu',assistant_coach1_email:'drobinson2@css.edu'},
+  {name:'Augsburg University',conference:'Minnesota Intercollegiate AC',division:'D3',head_coach_email:'holker@augsburg.edu',assistant_coach1_email:'boich@augsburg.edu',assistant_coach2_email:'kaelin@augsburg.edu'},
+  // Little East Conference
+  {name:'University of Massachusetts-Boston',conference:'Little East Conference',division:'D3',head_coach_email:'jake.beverlin@umb.edu'},
+  {name:'Western Connecticut State University',conference:'Little East Conference',division:'D3',head_coach_email:'mingachosj@wcsu.edu',assistant_coach1_email:'kyriakidisn@wcsu.edu',assistant_coach2_email:'Scarneiro11@gmail.com'},
+  {name:'University of Southern Maine',conference:'Little East Conference',division:'D3',head_coach_email:'james.hopkins@maine.edu'},
+  {name:'University of Massachusetts-Dartmouth',conference:'Little East Conference',division:'D3',head_coach_email:'aschaefer@umassd.edu',assistant_coach1_email:'smartins3@umassd.edu',assistant_coach2_email:'dpacheco2@umassd.edu'},
+  {name:'Plymouth State University',conference:'Little East Conference',division:'D3',head_coach_email:'rjwright@plymouth.edu',assistant_coach1_email:'kurt.webb@plymouth.edu',assistant_coach2_email:'jacob.santos@plymouth.edu'},
+  {name:'Rhode Island College',conference:'Little East Conference',division:'D3',head_coach_email:'kfroberg@ric.edu',assistant_coach1_email:'bbradley@ric.edu'},
+  {name:'Vermont State University-Castleton',conference:'Little East Conference',division:'D3',head_coach_email:"johnw.o'connor@vermontstate.edu",assistant_coach1_email:'erin.murphy@vermontstate.edu'},
+  {name:'Eastern Connecticut State University',conference:'Little East Conference',division:'D3',head_coach_email:'devitog@easternct.edu'},
+  {name:'Keene State College',conference:'Little East Conference',division:'D3',head_coach_email:'Matthew.Schmidt@keene.edu',assistant_coach1_email:'Matthew.Caron@keene.edu',assistant_coach2_email:'James.Mccully@keene.edu'},
+  // New England Small CAC
+  {name:'Williams College',conference:'New England Small CAC',division:'D3',head_coach_email:'ss40@williams.edu',assistant_coach1_email:'WilliamsMensSoccer@gmail.com'},
+  {name:'Bowdoin College',conference:'New England Small CAC',division:'D3',head_coach_email:'swiercin@bowdoin.edu',assistant_coach1_email:'a.banadda@bowdoin.edu',assistant_coach2_email:'msoccer@bowdoin.edu'},
+  {name:'Amherst College',conference:'New England Small CAC',division:'D3',head_coach_email:'jserpone@amherst.edu',assistant_coach1_email:'aortega@amherst.edu'},
+  {name:'Tufts University',conference:'New England Small CAC',division:'D3',head_coach_email:'menssoccer@tufts.edu'},
+  {name:'Connecticut College',conference:'New England Small CAC',division:'D3',head_coach_email:'rburk@conncoll.edu',assistant_coach1_email:'astorton@conncoll.edu'},
+  {name:'Trinity College (CT)',conference:'New England Small CAC',division:'D3',head_coach_email:'methembe.ndlovu@trincoll.edu',assistant_coach1_email:'austin.farwell@trincoll.edu',assistant_coach2_email:'travis.brown@trincoll.edu'},
+  {name:'Wesleyan University',conference:'New England Small CAC',division:'D3',head_coach_email:'gwheeler@wesleyan.edu',assistant_coach1_email:'kpollard@wesleyan.edu',assistant_coach2_email:'jthwaites@wesleyan.edu'},
+  {name:'Bates College',conference:'New England Small CAC',division:'D3',head_coach_email:'bbrewster@bates.edu',assistant_coach1_email:'ahoughton@bates.edu',assistant_coach2_email:'jsautter@bates.edu'},
+  {name:'Colby College',conference:'New England Small CAC',division:'D3',head_coach_email:'gcumpsto@colby.edu',assistant_coach1_email:'bmanoogi@colby.edu'},
+  {name:'Hamilton College',conference:'New England Small CAC',division:'D3',head_coach_email:'pnizzi@hamilton.edu',assistant_coach1_email:'bujvary@hamilton.edu'},
+  {name:'Middlebury College',conference:'New England Small CAC',division:'D3',head_coach_email:'aelias@middlebury.edu',assistant_coach1_email:'tp@middlebury.edu',assistant_coach2_email:'bpotter@middlebury.edu'},
+  // Great Northeast AC
+  {name:'University of Saint Joseph',conference:'Great Northeast AC',division:'D3',head_coach_email:'paulwright@usj.edu',assistant_coach1_email:'michaeltorres@usj.edu',assistant_coach2_email:'bheredia@usj.edu'},
+  {name:'New England College',conference:'Great Northeast AC',division:'D3',head_coach_email:'plaughlin@nec.edu',assistant_coach1_email:'rhubbard@nec.edu',assistant_coach2_email:'sortuno-barrero_gps@nec.edu'},
+  {name:'Albertus Magnus College',conference:'Great Northeast AC',division:'D3',head_coach_email:'phamasian@albertus.edu',assistant_coach1_email:'calourenco@albertus.edu'},
+  {name:'Regis College',conference:'Great Northeast AC',division:'D3',head_coach_email:'renato.capobianco@regiscollege.edu',assistant_coach1_email:'luke.ayotte@regiscollege.edu'},
+  {name:'Colby-Sawyer College',conference:'Great Northeast AC',division:'D3',head_coach_email:'zachary.grady@colby-sawyer.edu',assistant_coach1_email:'mark.boucher@colby-sawyer.edu'},
+  {name:'Johnson and Wales University-Providence',conference:'Great Northeast AC',division:'D3',head_coach_email:'david.kulik@jwu.edu',assistant_coach1_email:'adrian.blackadar@jwu.edu',assistant_coach2_email:'james.petrella@jwu.edu'},
+  {name:'Norwich University',conference:'Great Northeast AC',division:'D3',head_coach_email:'remmett@norwich.edu',assistant_coach1_email:'nelmore@norwich.edu'},
+  {name:'Mitchell College',conference:'Great Northeast AC',division:'D3',head_coach_email:'pilger_c@mitchell.edu',assistant_coach1_email:'abramo_d@mitchell.edu'},
+  {name:"Saint Joseph's College of Maine",conference:'Great Northeast AC',division:'D3',head_coach_email:'wpike@sjcme.edu'},
+  {name:'Dean College',conference:'Great Northeast AC',division:'D3',head_coach_email:'wbackman@dean.edu',assistant_coach1_email:'hniyonzima@dean.edu'},
+  {name:'Emmanuel College (MA)',conference:'Great Northeast AC',division:'D3',head_coach_email:'shimerj@emmanuel.edu',assistant_coach1_email:'ebankss@emmanuel.edu'},
+  {name:'Lasell University',conference:'Great Northeast AC',division:'D3',head_coach_email:'LuCabral@Lasell.edu',assistant_coach1_email:'agiordano@lasell.edu'},
+  {name:'Elms College',conference:'Great Northeast AC',division:'D3',head_coach_email:'wysockim@elms.edu'},
+  {name:'Rivier University',conference:'Great Northeast AC',division:'D3',head_coach_email:'jcross@rivier.edu'},
+  // Pine Manor / American Collegiate AA
+  {name:'Pine Manor College',conference:'American Collegiate AA',division:'D3'},
+  // Penn State Schuylkill
+  {name:'Penn State Schuylkill',conference:'Eastern College AC',division:'D3'},
+];
+
+async function seedD3Schools() {
+  const btn = document.querySelectorAll('.btn-seed')[1];
+  btn.textContent = 'seeding d3...'; btn.disabled = true;
+  const existing = state.schools.map(s => s.name.toLowerCase());
+  const toInsert = D3_SCHOOLS.filter(s => !existing.includes(s.name.toLowerCase()));
+  if (!toInsert.length) { toast('all d3 schools already seeded'); btn.textContent = 'seed d3 schools'; btn.disabled = false; return; }
+  const chunks = [];
+  for (let i = 0; i < toInsert.length; i += 50) chunks.push(toInsert.slice(i, i + 50));
+  for (const chunk of chunks) {
+    const { error } = await sb.from('schools').insert(chunk);
+    if (error) { toast(error.message, true); btn.textContent = 'seed d3 schools'; btn.disabled = false; return; }
+  }
+  toast(`seeded ${toInsert.length} d3 schools`);
+  btn.textContent = 'seed d3 schools'; btn.disabled = false;
+  loadSchools();
+}
 
 async function seedSchools() {
   const btn = document.querySelector('.btn-seed');
