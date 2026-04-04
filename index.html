@@ -449,7 +449,7 @@ tbody td{padding:12px 12px;font-size:.78rem;color:var(--cream);vertical-align:mi
       <div class="table-wrap">
         <table>
           <thead><tr>
-            <th>school</th><th>div</th><th>conference</th><th>min gpa</th><th>min sat</th><th>min toefl</th><th>avg gpa</th><th>notes</th><th></th>
+            <th>school</th><th>div</th><th>conference</th><th>min gpa</th><th>min sat</th><th>min toefl</th><th>avg gpa</th><th>tuition (out)</th><th>notes</th><th></th>
           </tr></thead>
           <tbody id="benchmarks-body"></tbody>
         </table>
@@ -582,6 +582,7 @@ function switchTab(tab) {
   document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
   document.getElementById('tab-' + tab).classList.add('active');
   document.getElementById('nav-' + tab).classList.add('active');
+  if (tab === 'scholarships') { renderMatchmakerPlayers(); if (mmSelectedPlayer) renderMatchResults(); }
 }
 
 // ===== SCHOOLS =====
@@ -778,7 +779,7 @@ function renderStats() {
 
 // ===== BENCHMARKS =====
 async function loadBenchmarks() {
-  const { data } = await sb.from('academic_benchmarks').select('*, schools(name)').order('updated_at', { ascending: false });
+  const { data } = await sb.from('academic_benchmarks').select('*, schools(name,division,conference)').order('updated_at', { ascending: false });
   state.benchmarks = data || [];
   renderBenchmarks();
 }
@@ -819,6 +820,7 @@ function renderBenchmarks() {
       <td>${b?.min_sat??'—'}</td>
       <td>${b?.min_toefl??'—'}</td>
       <td>${b?.avg_gpa_accepted??'—'}</td>
+      <td style="font-size:.72rem">${b?.tuition ? '$'+Number(b.tuition).toLocaleString() : '—'}</td>
       <td style="font-size:.72rem;color:var(--cream-dim);max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${b?.notes||'—'}</td>
       <td><div class="row-actions">
         <button class="btn-icon" onclick="openBenchmarkForSchool('${s.id}')">${b ? 'edit' : 'add'}</button>
@@ -828,39 +830,274 @@ function renderBenchmarks() {
   }).join('');
 }
 
-// ===== SCHOLARSHIPS =====
+// ===== MATCHMAKER (scholarships tab) =====
 async function loadScholarships() {
   const { data } = await sb.from('scholarships').select('*, schools(name,division,conference)').order('last_verified', { ascending: false });
   state.scholarships = data || [];
-  renderScholarships();
+  renderMatchmakerPlayers();
 }
 
-function renderScholarships() {
-  const search = document.getElementById('schf-search').value.toLowerCase();
-  const div    = document.getElementById('schf-div').value;
-  const conf   = document.getElementById('schf-conf').value.toLowerCase();
-  let rows = state.scholarships.filter(r => {
-    if (search && !(r.schools?.name||'').toLowerCase().includes(search)) return false;
-    if (div && r.schools?.division !== div) return false;
-    if (conf && !(r.schools?.conference||'').toLowerCase().includes(conf)) return false;
-    return true;
+let mmSelectedPlayer = null;
+let mmDivFilter = '';
+let mmConfFilter = '';
+let mmGradeFilter = '';
+
+function renderMatchmakerPlayers() {
+  const list = document.getElementById('mm-player-list');
+  if (!list) return;
+  if (!state.players.length) {
+    list.innerHTML = '<div class="mm-empty">no players yet.<br>add players in the players tab first.</div>';
+    return;
+  }
+  list.innerHTML = state.players.map(p => {
+    const hex = buildHexSVG(p, 44);
+    const tier = p.tier ? `<span style="color:${p.tier==='high'?'var(--green)':p.tier==='mid'?'var(--yellow)':'var(--red)'}"> · ${p.tier}</span>` : '';
+    const selected = mmSelectedPlayer?.id === p.id;
+    return `<div class="mm-player-card${selected?' selected':''}" onclick="selectPlayer('${p.id}')">
+      ${hex}
+      <div class="mm-player-info">
+        <div class="mm-player-name">${p.full_name}</div>
+        <div class="mm-player-meta">${p.position||'—'} · ${p.nationality||'—'}${tier}</div>
+        <div class="mm-player-meta">gpa ${p.gpa||'—'} · sat ${p.sat||'—'}</div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function selectPlayer(id) {
+  mmSelectedPlayer = state.players.find(p => p.id === id);
+  renderMatchmakerPlayers();
+  renderMatchResults();
+}
+
+function gradeFromScore(pct) {
+  if (pct >= 85) return 'A';
+  if (pct >= 70) return 'B';
+  if (pct >= 50) return 'C';
+  if (pct >= 30) return 'D';
+  return 'F';
+}
+
+function scorePlayer(player, school) {
+  const bench = state.benchmarks.find(b => b.school_id === school.id);
+  const sch   = state.scholarships.find(s => s.school_id === school.id);
+  const tierMap = { high:'D1', mid:'D2', low:'D3' };
+  let pts = 0, max = 0;
+
+  // GPA (30pts)
+  max += 30;
+  if (bench?.min_gpa) {
+    if (player.gpa >= bench.min_gpa) pts += 30;
+    else if (player.gpa >= bench.min_gpa - 0.3) pts += 15;
+  } else if (player.gpa) pts += 15; // no benchmark = partial
+
+  // SAT (25pts)
+  max += 25;
+  if (bench?.min_sat) {
+    if (player.sat >= bench.min_sat) pts += 25;
+    else if (player.sat >= bench.min_sat - 100) pts += 12;
+  } else if (player.sat) pts += 12;
+
+  // Tier/Division fit (25pts)
+  max += 25;
+  if (player.tier && tierMap[player.tier] === school.division) pts += 25;
+  else if (player.tier && Math.abs(['D1','D2','D3'].indexOf(tierMap[player.tier]) - ['D1','D2','D3'].indexOf(school.division)) === 1) pts += 12;
+
+  // Scholarship availability (15pts)
+  max += 15;
+  if (sch && sch.full_rides_available > 0) pts += 15;
+  else if (sch && sch.partial_available > 0) pts += 8;
+  else if (school.division === 'D3') pts += 10; // D3 all academic aid
+
+  // Not yet in pipeline bonus (5pts)
+  max += 5;
+  const inPipeline = state.pipeline.find(p => p.player_id === player.id && p.school_id === school.id);
+  if (!inPipeline) pts += 5;
+
+  const pct = Math.round((pts / max) * 100);
+  return { pts, max, pct, grade: gradeFromScore(pct), bench, sch, inPipeline };
+}
+
+function renderMatchResults() {
+  const container = document.getElementById('mm-results');
+  if (!mmSelectedPlayer) {
+    container.innerHTML = '<div class="mm-empty" style="margin-top:60px">← select a player<br>to see their ranked school matches</div>';
+    return;
+  }
+  const p = mmSelectedPlayer;
+
+  // score all schools
+  let scored = state.schools.map(school => {
+    const s = scorePlayer(p, school);
+    return { school, ...s };
+  }).sort((a, b) => b.pct - a.pct);
+
+  // filters
+  if (mmDivFilter) scored = scored.filter(r => r.school.division === mmDivFilter);
+  if (mmConfFilter) scored = scored.filter(r => (r.school.conference||'').toLowerCase().includes(mmConfFilter.toLowerCase()));
+  if (mmGradeFilter) scored = scored.filter(r => r.grade === mmGradeFilter);
+
+  const top = scored.slice(0, 50);
+  const aCount = scored.filter(r => r.grade === 'A').length;
+  const bCount = scored.filter(r => r.grade === 'B').length;
+
+  const hexBig = buildHexSVG(p, 80);
+  const dob = p.date_of_birth ? new Date(p.date_of_birth) : null;
+  const age = dob ? Math.floor((Date.now() - dob) / 31557600000) : null;
+
+  container.innerHTML = `
+    <div class="mm-player-header">
+      ${hexBig}
+      <div class="mm-player-header-info">
+        <div class="mm-player-title">${p.full_name}</div>
+        <div class="mm-chips">
+          ${p.position ? `<span class="mm-chip">${p.position}</span>` : ''}
+          ${p.nationality ? `<span class="mm-chip">${p.nationality}</span>` : ''}
+          ${age ? `<span class="mm-chip">${age} yrs</span>` : ''}
+          ${p.tier ? `<span class="mm-chip" style="color:${p.tier==='high'?'var(--green)':p.tier==='mid'?'var(--yellow)':'var(--red)'}">${p.tier} tier</span>` : ''}
+          ${p.gpa ? `<span class="mm-chip">gpa ${p.gpa}</span>` : ''}
+          ${p.sat ? `<span class="mm-chip">sat ${p.sat}</span>` : ''}
+        </div>
+        <div class="mm-strong-matches"><strong style="color:var(--green)">${aCount} A-grade</strong> matches · <strong style="color:var(--d1)">${bCount} B-grade</strong> matches out of ${state.schools.length} schools</div>
+      </div>
+    </div>
+    <div class="mm-section-title">filters</div>
+    <div class="mm-filters">
+      <select class="filter-input" style="min-width:120px" onchange="mmDivFilter=this.value;renderMatchResults()">
+        <option value="">all divisions</option>
+        <option${mmDivFilter==='D1'?' selected':''}>D1</option>
+        <option${mmDivFilter==='D2'?' selected':''}>D2</option>
+        <option${mmDivFilter==='D3'?' selected':''}>D3</option>
+      </select>
+      <input class="filter-input" placeholder="conference..." value="${mmConfFilter}" oninput="mmConfFilter=this.value;renderMatchResults()" style="min-width:130px">
+      <select class="filter-input" style="min-width:110px" onchange="mmGradeFilter=this.value;renderMatchResults()">
+        <option value="">all grades</option>
+        ${['A','B','C','D','F'].map(g=>`<option${mmGradeFilter===g?' selected':''}>${g}</option>`).join('')}
+      </select>
+      <span style="font-size:.72rem;color:var(--cream-dim)">${top.length} shown</span>
+    </div>
+    <div class="mm-section-title">match results</div>
+    ${top.length ? top.map((r,i) => {
+      const dc = r.school.division==='D1'?'var(--d1)':r.school.division==='D2'?'var(--d2)':'var(--d3)';
+      const barColor = r.grade==='A'?'var(--green)':r.grade==='B'?'var(--d1)':r.grade==='C'?'var(--yellow)':r.grade==='D'?'var(--d3)':'var(--red)';
+      const reasons = [];
+      if (r.bench?.min_gpa && p.gpa >= r.bench.min_gpa) reasons.push('✓ gpa');
+      if (r.bench?.min_sat && p.sat >= r.bench.min_sat) reasons.push('✓ sat');
+      if (r.sch?.full_rides_available > 0) reasons.push('✓ full ride');
+      else if (r.sch?.partial_available > 0) reasons.push('✓ partial aid');
+      if (r.inPipeline) reasons.push('⟳ in pipeline');
+      return `<div class="mm-match-card">
+        <div class="grade-badge grade-${r.grade}">${r.grade}</div>
+        <div class="mm-match-info">
+          <div class="mm-match-name">${r.school.name}</div>
+          <div class="mm-match-sub"><span style="color:${dc};font-weight:700">${r.school.division}</span> · ${r.school.conference||'—'}${r.bench?.tuition ? ` · <span style="color:var(--cream-dim)">$${Number(r.bench.tuition).toLocaleString()}/yr</span>` : ''}${reasons.length?` · <span style="color:var(--cream-dim)">${reasons.join(' ')}</span>`:''}</div>
+          <div class="mm-match-bar"><div class="mm-match-fill" style="width:${r.pct}%;background:${barColor}"></div></div>
+        </div>
+        <div class="mm-match-right">
+          <span class="mm-pct" style="color:${barColor}">${r.pct}%</span>
+          ${!r.inPipeline ? `<button class="btn-icon" style="font-size:.65rem;padding:3px 8px" onclick="quickAddPipeline('${p.id}','${r.school.id}')">+ pipeline</button>` : `<span style="font-size:.65rem;color:var(--cream-dim)">in pipeline</span>`}
+        </div>
+      </div>`;
+    }).join('') : '<div class="mm-empty">no matches for current filters.</div>'}`;
+}
+
+async function quickAddPipeline(playerId, schoolId) {
+  const { error } = await sb.from('pipeline').insert([{ player_id: playerId, school_id: schoolId, status: 'not_contacted' }]);
+  if (error) { toast(error.message, true); return; }
+  toast('added to pipeline');
+  await loadPipeline();
+  renderMatchResults();
+}
+
+// ===== HEXAGON RADAR SVG =====
+function buildHexSVG(player, size) {
+  const cx = size / 2, cy = size / 2, r = size * 0.42;
+  const axes = 6;
+  // Metrics: GPA (0-4), SAT (400-1600), Tier (low=33,mid=66,high=100), Age fitness, Pipeline activity, Academic match rate
+  const gpaScore   = player.gpa  ? Math.min(1, player.gpa / 4) : 0;
+  const satScore   = player.sat  ? Math.min(1, (player.sat - 400) / 1200) : 0;
+  const tierScore  = player.tier === 'high' ? 1 : player.tier === 'mid' ? 0.6 : player.tier === 'low' ? 0.3 : 0;
+  const dob        = player.date_of_birth ? new Date(player.date_of_birth) : null;
+  const age        = dob ? Math.floor((Date.now() - dob) / 31557600000) : null;
+  const ageScore   = age ? Math.max(0, Math.min(1, 1 - Math.abs(age - 19) / 5)) : 0;
+  const pipeCount  = state.pipeline.filter(p => p.player_id === player.id).length;
+  const pipeScore  = Math.min(1, pipeCount / 10);
+  const benchCount = state.benchmarks.length;
+  const matchCount = benchCount ? state.benchmarks.filter(b => {
+    const s = state.schools.find(sc => sc.id === b.school_id);
+    const { pct } = scorePlayer(player, s || {});
+    return pct >= 70;
+  }).length : 0;
+  const matchScore = benchCount ? Math.min(1, matchCount / Math.max(1, benchCount)) : 0;
+
+  const scores = [gpaScore, satScore, tierScore, ageScore, pipeScore, matchScore];
+  const labels = ['gpa','sat','tier','age','pipe','match'];
+
+  function pt(i, val) {
+    const angle = (Math.PI * 2 * i / axes) - Math.PI / 2;
+    return [cx + r * val * Math.cos(angle), cy + r * val * Math.sin(angle)];
+  }
+
+  // grid rings
+  let rings = '';
+  [0.33, 0.66, 1].forEach(ring => {
+    const pts = Array.from({length: axes}, (_,i) => pt(i, ring).join(',')).join(' ');
+    rings += `<polygon points="${pts}" fill="none" stroke="rgba(241,238,230,0.07)" stroke-width="0.5"/>`;
   });
-  const tbody = document.getElementById('scholarships-body');
-  const empty = document.getElementById('scholarships-empty');
-  if (!rows.length) { tbody.innerHTML = ''; empty.style.display = 'block'; return; }
-  empty.style.display = 'none';
-  tbody.innerHTML = rows.map(r => `
-    <tr>
-      <td style="font-weight:600">${r.schools?.name||'—'}</td>
-      <td style="color:var(--green);font-weight:700">${r.full_rides_available??'—'}</td>
-      <td style="color:var(--yellow)">${r.partial_available??'—'}</td>
-      <td style="font-size:.72rem;color:var(--cream-dim)">${r.aid_details||'—'}</td>
-      <td style="font-size:.72rem">${r.last_verified||'—'}</td>
-      <td><div class="row-actions">
-        <button class="btn-icon" onclick="openModal('scholarship','${r.id}')">edit</button>
-        <button class="btn-icon del" onclick="deleteRow('scholarships','${r.id}',loadScholarships)">del</button>
-      </div></td>
-    </tr>`).join('');
+  // spokes
+  let spokes = Array.from({length: axes}, (_,i) => {
+    const [x,y] = pt(i, 1);
+    return `<line x1="${cx}" y1="${cy}" x2="${x}" y2="${y}" stroke="rgba(241,238,230,0.07)" stroke-width="0.5"/>`;
+  }).join('');
+  // data polygon
+  const dataPts = scores.map((v,i) => pt(i, Math.max(0.05, v)).join(',')).join(' ');
+
+  return `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" style="flex-shrink:0">
+    ${rings}${spokes}
+    <polygon points="${dataPts}" fill="rgba(142,181,163,0.25)" stroke="var(--d1)" stroke-width="1.2"/>
+  </svg>`;
+}
+
+// ===== COLLEGE SCORECARD LIVE SYNC =====
+async function syncLiveSchoolData() {
+  const apiKey = document.getElementById('mm-api-key').value.trim();
+  if (!apiKey) { toast('enter your college scorecard api key first — get one free at api.data.gov', true); return; }
+  const btn = document.querySelector('.btn-sync');
+  btn.disabled = true; btn.textContent = '↻ syncing...';
+  let synced = 0, errors = 0;
+  const schoolsToSync = state.schools.slice(0, 100); // batch to avoid rate limits
+  for (const school of schoolsToSync) {
+    try {
+      const name = encodeURIComponent(school.name);
+      const url = `https://api.data.gov/ed/collegescorecard/v1/schools?school.name=${name}&fields=school.name,latest.admissions.sat_scores.average.overall,latest.admissions.admission_rate.overall,latest.cost.tuition.in_state,latest.cost.tuition.out_of_state,latest.academics.program_available.bachelors&api_key=${apiKey}&per_page=1`;
+      const res = await fetch(url);
+      const json = await res.json();
+      const r = json.results?.[0];
+      if (!r) continue;
+      const satAvg     = r['latest.admissions.sat_scores.average.overall'];
+      const admRate    = r['latest.admissions.admission_rate.overall'];
+      const tuitionOut = r['latest.cost.tuition.out_of_state'];
+      if (!satAvg && !admRate && !tuitionOut) continue;
+      // upsert into academic_benchmarks
+      const existing = state.benchmarks.find(b => b.school_id === school.id);
+      const payload = {
+        school_id: school.id,
+        ...(satAvg    ? { min_sat: Math.round(satAvg * 0.85) } : {}),
+        ...(tuitionOut? { tuition: tuitionOut } : {}),
+        ...(admRate   ? { notes: `${existing?.notes||''} [adm rate: ${(admRate*100).toFixed(1)}%]`.trim() } : {}),
+        updated_at: new Date().toISOString()
+      };
+      if (existing) {
+        await sb.from('academic_benchmarks').update(payload).eq('id', existing.id);
+      } else {
+        await sb.from('academic_benchmarks').insert([payload]);
+      }
+      synced++;
+    } catch(e) { errors++; }
+  }
+  await loadBenchmarks();
+  btn.disabled = false; btn.textContent = '↻ sync live data';
+  toast(`synced ${synced} schools${errors ? ` · ${errors} failed` : ''}`);
 }
 
 // ===== EVENTS =====
@@ -1010,6 +1247,7 @@ function getModalForm(type, id) {
       <div class="form-field"><label>min toefl</label><input type="number" id="f-toefl" value="${bench?.min_toefl||''}"></div>
       <div class="form-field"><label>avg gpa accepted</label><input type="number" step="0.01" id="f-avgpa" value="${bench?.avg_gpa_accepted||''}"></div>
     </div>
+    <div class="form-field"><label>tuition (out-of-state / year, $)</label><input type="number" id="f-tuition" value="${bench?.tuition||''}"></div>
     <div class="form-field"><label>notes</label><textarea id="f-notes" rows="2">${bench?.notes||''}</textarea></div>`;
 
   if (type === 'scholarship') return `
@@ -1051,7 +1289,7 @@ async function saveModal() {
     payload = { school_id:g('#f-school')||null, season:g('#f-season'), wins:parseInt(g('#f-wins'))||0, losses:parseInt(g('#f-losses'))||0, draws:parseInt(g('#f-draws'))||0, conference_ranking:parseInt(g('#f-confr'))||null, national_ranking:parseInt(g('#f-natr'))||null, updated_at:new Date().toISOString() };
     if (!payload.school_id) { toast('school required', true); return; }
   } else if (type === 'benchmark') {
-    payload = { school_id:g('#f-school')||null, min_gpa:parseFloat(g('#f-gpa'))||null, min_sat:parseInt(g('#f-sat'))||null, min_toefl:parseInt(g('#f-toefl'))||null, avg_gpa_accepted:parseFloat(g('#f-avgpa'))||null, notes:g('#f-notes'), updated_at:new Date().toISOString() };
+    payload = { school_id:g('#f-school')||null, min_gpa:parseFloat(g('#f-gpa'))||null, min_sat:parseInt(g('#f-sat'))||null, min_toefl:parseInt(g('#f-toefl'))||null, avg_gpa_accepted:parseFloat(g('#f-avgpa'))||null, tuition:parseInt(g('#f-tuition'))||null, notes:g('#f-notes'), updated_at:new Date().toISOString() };
     if (!payload.school_id) { toast('school required', true); return; }
   } else if (type === 'scholarship') {
     payload = { school_id:g('#f-school')||null, full_rides_available:parseInt(g('#f-full'))||0, partial_available:parseInt(g('#f-partial'))||0, aid_details:g('#f-details'), last_verified:g('#f-verified')||null };
