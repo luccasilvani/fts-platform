@@ -26,7 +26,7 @@
 }
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 html{scroll-behavior:smooth}
-body{font-family:'Jost',sans-serif;background:var(--black);color:var(--cream);-webkit-font-smoothing:antialiased;overflow-x:hidden;min-height:100vh;text-transform:lowercase}
+body{font-family:'Jost',sans-serif;background:var(--black);color:var(--cream);-webkit-font-smoothing:antialiased;overflow-x:clip;min-height:100vh;text-transform:lowercase}
 body::before{content:'';position:fixed;inset:0;background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 512 512' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");opacity:.035;pointer-events:none;z-index:9999}
 button,input,select,textarea{font-family:'Jost',sans-serif;text-transform:lowercase}
 input[type=number]{-moz-appearance:textfield}
@@ -99,8 +99,18 @@ nav{flex:1;padding:16px 12px;display:flex;flex-direction:column;gap:2px}
 select.filter-input option{background:#2B2926;color:var(--cream)}
 
 /* ===== TABLE ===== */
-.table-wrap{flex:1;overflow-x:auto;padding:0 36px 36px}
-table{width:100%;border-collapse:collapse;margin-top:20px;min-width:600px}
+.table-wrap{flex:1;overflow-x:auto;padding:0 36px 36px;-webkit-overflow-scrolling:touch}
+.table-wrap::-webkit-scrollbar{height:6px}
+.table-wrap::-webkit-scrollbar-track{background:rgba(241,238,230,.04);border-radius:999px}
+.table-wrap::-webkit-scrollbar-thumb{background:rgba(241,238,230,.18);border-radius:999px}
+.table-wrap::-webkit-scrollbar-thumb:hover{background:rgba(241,238,230,.32)}
+table{width:100%;border-collapse:collapse;margin-top:20px;min-width:900px}
+/* per-tab min widths so every column stays reachable at 100% zoom */
+#tab-schools    .table-wrap table{min-width:1000px}
+#tab-stats      .table-wrap table{min-width:1100px}
+#tab-benchmarks .table-wrap table{min-width:1050px}
+#tab-pipeline   .table-wrap table{min-width:900px}
+#tab-scholarships .match-grid{overflow-x:auto;-webkit-overflow-scrolling:touch}
 thead th{font-size:.65rem;font-weight:600;letter-spacing:.08em;color:var(--cream-dim);text-align:left;padding:10px 12px;border-bottom:1px solid var(--cream-border)}
 tbody tr{border-bottom:1px solid rgba(241,238,230,.05);transition:background .12s}
 tbody tr:hover{background:var(--cream-faint)}
@@ -304,6 +314,9 @@ tbody td{padding:12px 12px;font-size:.78rem;color:var(--cream);vertical-align:mi
 .btn-sync{padding:9px 15px;background:rgba(142,181,163,.1);color:var(--d1);border:1px solid rgba(142,181,163,.28);border-radius:999px;font-size:.72rem;font-weight:600;cursor:pointer;transition:all .15s}
 .btn-sync:hover{background:rgba(142,181,163,.2)}
 .btn-sync:disabled{opacity:.5;cursor:not-allowed}
+.season-pill{padding:5px 13px;background:rgba(241,238,230,.05);color:var(--cream-dim);border:1px solid var(--cream-border);border-radius:999px;font-size:.67rem;font-weight:600;cursor:pointer;transition:background .12s,color .12s,border-color .12s}
+.season-pill:hover{background:rgba(241,238,230,.1);color:var(--cream)}
+.season-pill.active{background:rgba(142,181,163,.15);color:var(--d1);border-color:rgba(142,181,163,.4)}
 .sync-note{font-size:.65rem;color:var(--cream-dim);margin-top:4px}
 
 /* ===== TOAST ===== */
@@ -484,9 +497,66 @@ tbody td{padding:12px 12px;font-size:.78rem;color:var(--cream);vertical-align:mi
       <div class="panel-header">
         <div><div class="panel-title">team statistics</div><div class="panel-subtitle" id="stats-count">loading...</div></div>
         <div class="panel-actions">
+          <button class="btn-sync" onclick="toggleStatsCsvPanel()" style="font-size:.72rem">⤓ import csv</button>
+          <button class="btn-sync" onclick="loadStats()" style="font-size:.72rem" title="reload from database">↻ refresh</button>
+          <button class="btn-sync" onclick="showStatsMigrationsModal()" style="background:none;border-color:#5c8a6a;color:#7ec8a0;font-size:.72rem" title="show SQL to add required columns">⚙ sql setup</button>
           <button class="btn-add" onclick="openModal('stats')">+ add record</button>
         </div>
       </div>
+
+      <!-- CSV IMPORT PANEL -->
+      <div id="stats-csv-panel" style="display:none;padding:16px 28px;border-bottom:1px solid var(--cream-border);background:rgba(43,41,38,.6)">
+        <div style="display:flex;gap:12px;align-items:flex-start;flex-wrap:wrap">
+          <div style="flex:1;min-width:260px">
+            <div style="font-size:.72rem;color:var(--cream);font-weight:600;margin-bottom:6px">import ncaa stats csv</div>
+            <div style="font-size:.66rem;color:var(--cream-dim);line-height:1.7;margin-bottom:10px">
+              download from <strong style="color:#7ec8a0">stats.ncaa.org → Soccer → Team Stats</strong> → select year → export.<br>
+              required columns: <code style="background:rgba(255,255,255,.06);padding:1px 5px;border-radius:3px">School, W, L, T (or D)</code> &nbsp;·&nbsp; optional: <code style="background:rgba(255,255,255,.06);padding:1px 5px;border-radius:3px">GF, GA, Conf W, Conf L, Conf T, Conf Rank, Nat Rank, NCAA</code>
+            </div>
+            <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+              <input type="file" id="stats-csv-file" accept=".csv,.txt" style="font-size:.7rem;color:var(--cream-dim)" onchange="previewStatsCSV()">
+              <div style="display:flex;gap:6px;align-items:center">
+                <span style="font-size:.68rem;color:var(--cream-dim)">season:</span>
+                <select id="stats-csv-season" style="background:#2a2825;border:1px solid var(--cream-border);color:var(--cream);font-size:.72rem;padding:4px 8px;border-radius:4px">
+                  <option value="2025">2025</option>
+                  <option value="2024" selected>2024</option>
+                  <option value="2023">2023</option>
+                  <option value="2022">2022</option>
+                </select>
+              </div>
+            </div>
+          </div>
+          <div id="stats-csv-preview" style="flex:1;min-width:200px;display:none">
+            <div style="font-size:.68rem;color:var(--cream-dim)" id="stats-csv-preview-text"></div>
+            <div style="margin-top:8px;display:flex;gap:8px">
+              <button class="btn-sync" id="stats-csv-confirm-btn" onclick="confirmStatsCSVImport()" style="font-size:.71rem">✓ import</button>
+              <button class="btn-sync" onclick="document.getElementById('stats-csv-file').value='';document.getElementById('stats-csv-preview').style.display='none'" style="background:none;border-color:var(--cream-border);color:var(--cream-dim);font-size:.71rem">✕ clear</button>
+            </div>
+          </div>
+          <button onclick="toggleStatsCsvPanel()" style="background:none;border:none;color:var(--cream-dim);font-size:1rem;cursor:pointer;padding:4px 8px">✕</button>
+        </div>
+        <div id="stats-import-progress" style="display:none;margin-top:10px">
+          <div style="display:flex;justify-content:space-between;margin-bottom:4px">
+            <span style="font-size:.68rem;color:var(--cream-dim)" id="stats-import-label">importing...</span>
+            <span style="font-size:.68rem;color:var(--cream-dim)" id="stats-import-pct">0%</span>
+          </div>
+          <div style="height:3px;border-radius:999px;background:rgba(241,238,230,.07);overflow:hidden">
+            <div id="stats-import-fill" style="height:100%;background:var(--d1);border-radius:999px;width:0%;transition:width .3s"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- SEASON PILLS -->
+      <div style="padding:10px 28px;border-bottom:1px solid var(--cream-border);display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+        <span style="font-size:.65rem;color:var(--cream-dim);margin-right:4px">season:</span>
+        <button class="season-pill active" data-season="all" onclick="setStatsSeason('all')">all seasons</button>
+        <button class="season-pill" data-season="2022" onclick="setStatsSeason('2022')">2022</button>
+        <button class="season-pill" data-season="2023" onclick="setStatsSeason('2023')">2023</button>
+        <button class="season-pill" data-season="2024" onclick="setStatsSeason('2024')">2024</button>
+        <button class="season-pill" data-season="2025" onclick="setStatsSeason('2025')">2025</button>
+        <span style="font-size:.62rem;color:var(--cream-dim);margin-left:6px" id="stats-season-note"></span>
+      </div>
+
       <div class="filters">
         <input class="filter-input" type="text" placeholder="search school..." id="stf-search" oninput="renderStats()">
         <select class="filter-input" id="stf-div" onchange="renderStats()">
@@ -494,7 +564,6 @@ tbody td{padding:12px 12px;font-size:.78rem;color:var(--cream);vertical-align:mi
           <option>D1</option><option>D2</option><option>D3</option>
         </select>
         <input class="filter-input" type="text" placeholder="conference..." id="stf-conf" oninput="renderStats()">
-        <input class="filter-input" type="text" placeholder="season (e.g. 2024)" id="stf-season" oninput="renderStats()">
         <select class="filter-input" id="stf-status" onchange="renderStats()">
           <option value="">all schools</option>
           <option value="has">has stats</option>
@@ -503,9 +572,10 @@ tbody td{padding:12px 12px;font-size:.78rem;color:var(--cream);vertical-align:mi
       </div>
       <div class="table-wrap">
         <table>
-          <thead><tr>
-            <th>school</th><th>div</th><th>conference</th><th>season</th><th>w</th><th>l</th><th>d</th>
-            <th>conf rank</th><th>nat rank</th><th></th>
+          <thead id="stats-thead"><tr>
+            <th>school</th><th>div</th><th>conference</th><th id="stats-th-season">season</th>
+            <th>w</th><th>l</th><th>d</th><th>gf</th><th>ga</th>
+            <th>conf rank</th><th>nat rank</th><th>ncaa</th><th></th>
           </tr></thead>
           <tbody id="stats-body"></tbody>
         </table>
@@ -1059,61 +1129,330 @@ function renderPipeline() {
 
 // ===== STATS =====
 async function loadStats() {
-  const { data } = await sb.from('team_stats').select('*, schools(name,division,conference)').order('updated_at', { ascending: false });
+  const { data } = await sb.from('team_stats').select('*').order('season', { ascending: false });
   state.stats = data || [];
+  renderStats();
+}
+
+// Active season state
+if (!window._statsSeasonInit) {
+  window._statsSeasonInit = true;
+  window.selectedStatSeason = 'all';
+}
+
+function setStatsSeason(season) {
+  window.selectedStatSeason = season;
+  document.querySelectorAll('.season-pill').forEach(p => {
+    p.classList.toggle('active', p.dataset.season === season);
+  });
+  // Update season header label
+  const note = document.getElementById('stats-season-note');
+  const thSeason = document.getElementById('stats-th-season');
+  if (season === 'all') {
+    if (note) note.textContent = 'showing aggregated totals across all seasons';
+    if (thSeason) thSeason.textContent = 'seasons';
+  } else {
+    if (note) note.textContent = '';
+    if (thSeason) thSeason.textContent = 'season';
+  }
   renderStats();
 }
 
 function renderStats() {
   const search = document.getElementById('stf-search').value.toLowerCase();
-  const season = document.getElementById('stf-season').value;
   const div    = document.getElementById('stf-div').value;
   const conf   = document.getElementById('stf-conf').value.toLowerCase();
   const status = document.getElementById('stf-status').value;
+  const season = window.selectedStatSeason || 'all';
+
+  // Build per-school stat lookup
+  const bySchool = {}; // school_id -> array of stat rows
+  state.stats.forEach(r => {
+    if (!bySchool[r.school_id]) bySchool[r.school_id] = [];
+    bySchool[r.school_id].push(r);
+  });
 
   let schools = state.schools.filter(s => {
     if (search && !s.name.toLowerCase().includes(search)) return false;
     if (div && s.division !== div) return false;
     if (conf && !(s.conference||'').toLowerCase().includes(conf)) return false;
-    const st = state.stats.find(r => r.school_id === s.id);
-    if (status === 'has' && !st) return false;
-    if (status === 'missing' && st) return false;
-    // season filter: only exclude if school has NO stat record matching the season
-    if (season) {
-      const match = state.stats.find(r => r.school_id === s.id && (r.season||'').includes(season));
-      if (!match) return false;
-    }
+    const rows = bySchool[s.id] || [];
+    const hasAny = rows.length > 0;
+    const hasSeason = season === 'all' ? hasAny : rows.some(r => String(r.season) === season);
+    if (status === 'has' && !hasSeason) return false;
+    if (status === 'missing' && hasSeason) return false;
     return true;
   });
 
-  const tbody = document.getElementById('stats-body');
-  const empty = document.getElementById('stats-empty');
+  const tbody  = document.getElementById('stats-body');
+  const empty  = document.getElementById('stats-empty');
   const countEl = document.getElementById('stats-count');
-  const withData = state.stats.length;
+  const withData = Object.keys(bySchool).length;
   if (countEl) countEl.textContent = `${schools.length} schools shown · ${withData} with stats logged`;
 
   if (!schools.length) { tbody.innerHTML = ''; empty.style.display = 'block'; return; }
   empty.style.display = 'none';
 
+  // Aggregate helper
+  function aggRows(rows) {
+    const valid = season === 'all' ? rows : rows.filter(r => String(r.season) === season);
+    if (!valid.length) return null;
+    const sum = (key) => valid.reduce((s, r) => s + (Number(r[key])||0), 0);
+    const minPos = (key) => {
+      const vals = valid.map(r => Number(r[key])).filter(v => v > 0);
+      return vals.length ? Math.min(...vals) : null;
+    };
+    return {
+      seasons: [...new Set(valid.map(r => r.season).filter(Boolean))].sort().join(', '),
+      wins: sum('wins'), losses: sum('losses'), draws: sum('draws'),
+      gf: sum('goals_for'), ga: sum('goals_against'),
+      confRank: season === 'all' ? minPos('conference_ranking') : (valid[0]?.conference_ranking || null),
+      natRank:  season === 'all' ? minPos('national_ranking')   : (valid[0]?.national_ranking || null),
+      ncaaApps: valid.filter(r => r.ncaa_tournament).length,
+      ncaaRound: season === 'all' ? null : (valid[0]?.ncaa_round || null),
+      rowId: valid[0]?.id,
+    };
+  }
+
+  const dc = d => d === 'D1' ? 'var(--d1)' : d === 'D2' ? 'var(--d2)' : 'var(--d3)';
+  const fmt = v => v != null && v !== '' ? v : '—';
+  const fmtRank = v => v ? `#${v}` : '—';
+  const fmtGF = v => v ? v : '—';
+
   tbody.innerHTML = schools.map(s => {
-    const st = state.stats.find(r => r.school_id === s.id);
-    const dc = s.division === 'D1' ? 'var(--d1)' : s.division === 'D2' ? 'var(--d2)' : 'var(--d3)';
+    const rows = bySchool[s.id] || [];
+    const agg  = aggRows(rows);
+    const isAgg = season === 'all';
     return `<tr>
-      <td style="font-weight:600">${s.name}</td>
-      <td><span style="color:${dc};font-size:.7rem;font-weight:700">${s.division||'—'}</span></td>
+      <td style="font-weight:600;font-size:.75rem">${s.name}</td>
+      <td><span style="color:${dc(s.division)};font-size:.7rem;font-weight:700">${s.division||'—'}</span></td>
       <td style="font-size:.72rem;color:var(--cream-dim)">${s.conference||'—'}</td>
-      <td style="font-size:.73rem">${st?.season||'—'}</td>
-      <td class="win-n" style="font-weight:700">${st?.wins??'—'}</td>
-      <td class="loss-n" style="font-weight:700">${st?.losses??'—'}</td>
-      <td class="draw-n">${st?.draws??'—'}</td>
-      <td>${st?.conference_ranking||'—'}</td>
-      <td>${st?.national_ranking||'—'}</td>
+      <td style="font-size:.7rem;color:var(--cream-dim)">${agg ? fmt(agg.seasons) : '—'}</td>
+      <td class="win-n" style="font-weight:700">${agg ? fmt(agg.wins) : '—'}</td>
+      <td class="loss-n" style="font-weight:700">${agg ? fmt(agg.losses) : '—'}</td>
+      <td class="draw-n">${agg ? fmt(agg.draws) : '—'}</td>
+      <td style="font-size:.72rem">${agg ? fmtGF(agg.gf) : '—'}</td>
+      <td style="font-size:.72rem">${agg ? fmtGF(agg.ga) : '—'}</td>
+      <td style="font-size:.72rem">${agg ? fmtRank(agg.confRank) : '—'}</td>
+      <td style="font-size:.72rem">${agg ? fmtRank(agg.natRank) : '—'}</td>
+      <td style="font-size:.7rem">${agg
+        ? (agg.ncaaApps > 0
+            ? `<span style="color:#7ec8a0;font-weight:600">${isAgg ? agg.ncaaApps+'×' : (agg.ncaaRound||'yes')}</span>`
+            : '<span style="color:var(--cream-dim)">—</span>')
+        : '—'}</td>
       <td><div class="row-actions">
-        <button class="btn-icon" onclick="openStatsForSchool('${s.id}')">${st ? 'edit' : 'add'}</button>
-        ${st ? `<button class="btn-icon del" onclick="deleteRow('team_stats','${st.id}',loadStats)">del</button>` : ''}
+        <button class="btn-icon" onclick="openStatsForSchool('${s.id}')" title="add/edit record for selected season">${rows.length ? 'edit' : 'add'}</button>
+        ${agg?.rowId && !isAgg ? `<button class="btn-icon del" onclick="deleteRow('team_stats','${agg.rowId}',loadStats)" title="delete this season's record">del</button>` : ''}
       </div></td>
     </tr>`;
   }).join('');
+}
+
+// ===== STATS CSV IMPORT =====
+function toggleStatsCsvPanel() {
+  const panel = document.getElementById('stats-csv-panel');
+  panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
+}
+
+let _csvParsed = null; // holds parsed rows pending confirmation
+
+function previewStatsCSV() {
+  const file = document.getElementById('stats-csv-file').files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    const season = document.getElementById('stats-csv-season').value;
+    const result = parseStatsCSV(e.target.result, season);
+    _csvParsed = result;
+    const preview = document.getElementById('stats-csv-preview');
+    const previewText = document.getElementById('stats-csv-preview-text');
+    preview.style.display = 'block';
+    const unmatched = result.rows.filter(r => !r.schoolId);
+    previewText.innerHTML = `
+      <span style="color:#7ec8a0;font-weight:600">${result.rows.filter(r => r.schoolId).length} schools matched</span>
+      &nbsp;·&nbsp; ${unmatched.length} unmatched
+      &nbsp;·&nbsp; season: <strong style="color:var(--cream)">${season}</strong>
+      ${unmatched.length ? `<div style="margin-top:6px;color:#c8906a;font-size:.63rem">unmatched: ${unmatched.slice(0,5).map(r => r.rawName).join(', ')}${unmatched.length > 5 ? ` +${unmatched.length-5} more` : ''}</div>` : ''}
+    `;
+  };
+  reader.readAsText(file);
+}
+
+// Flexible CSV column name aliases
+const CSV_COL_ALIASES = {
+  school: ['school','team','institution','name'],
+  wins:   ['w','wins','win'],
+  losses: ['l','losses','loss'],
+  draws:  ['t','d','draws','draw','ties','tie'],
+  gf:     ['gf','goals','goals for','goals scored','g'],
+  ga:     ['ga','goals against','goals allowed','goals conceded'],
+  cw:     ['cw','conf w','conference wins','conf wins'],
+  cl:     ['cl','conf l','conference losses','conf losses'],
+  ct:     ['ct','conf t','conf d','conference draws','conf draws'],
+  confRank: ['conf rank','conference rank','conf finish','conference finish','conf standing'],
+  natRank:  ['nat rank','national rank','rpi','ranking','national ranking'],
+  ncaa:     ['ncaa','ncaa tournament','tournament','ncaa tourn','tourney'],
+  ncaaRound:['ncaa round','round','tournament round'],
+};
+
+function resolveCsvCol(headers, key) {
+  const aliases = CSV_COL_ALIASES[key] || [key];
+  for (const alias of aliases) {
+    const idx = headers.findIndex(h => h.toLowerCase().trim() === alias);
+    if (idx >= 0) return idx;
+  }
+  return -1;
+}
+
+function parseStatsCSV(text, season) {
+  // Handle CRLF and LF
+  const lines = text.replace(/\r/g, '').split('\n').filter(l => l.trim());
+  if (lines.length < 2) return { rows: [], season };
+
+  // Parse header
+  const headers = lines[0].split(',').map(h => h.replace(/"/g,'').trim());
+  const col = key => resolveCsvCol(headers, key);
+
+  const schoolIdx  = col('school');
+  const wIdx       = col('wins');
+  const lIdx       = col('losses');
+  const dIdx       = col('draws');
+  const gfIdx      = col('gf');
+  const gaIdx      = col('ga');
+  const cwIdx      = col('cw');
+  const clIdx      = col('cl');
+  const ctIdx      = col('ct');
+  const confRankIdx= col('confRank');
+  const natRankIdx = col('natRank');
+  const ncaaIdx    = col('ncaa');
+  const ncaaRoundIdx = col('ncaaRound');
+
+  const parseNum  = v => { const n = parseInt((v||'').replace(/[^0-9]/g,'')); return isNaN(n) ? null : n; };
+  const parseBool = v => /yes|true|1|x|✓/i.test((v||'').trim());
+
+  // Build name lookup for fuzzy matching
+  const schoolMap = {};
+  state.schools.forEach(s => {
+    schoolMap[s.name.toLowerCase().trim()] = s.id;
+    // Also index common short forms
+    const short = s.name.replace(/\b(university|college|institute|of|the|at)\b/gi,' ').replace(/\s+/g,' ').trim().toLowerCase();
+    if (short !== s.name.toLowerCase()) schoolMap[short] = s.id;
+  });
+
+  const rows = lines.slice(1).map(line => {
+    const cells = line.split(',').map(c => c.replace(/"/g,'').trim());
+    const rawName = schoolIdx >= 0 ? cells[schoolIdx] : '';
+    if (!rawName) return null;
+
+    // Match school
+    const nameLower = rawName.toLowerCase().trim();
+    let schoolId = schoolMap[nameLower];
+    if (!schoolId) {
+      // Fuzzy: strip suffixes
+      const stripped = nameLower.replace(/\b(university|college|institute|of|the|at)\b/g,' ').replace(/\s+/g,' ').trim();
+      schoolId = schoolMap[stripped];
+    }
+    if (!schoolId) {
+      // Fuzzy: find partial match
+      const found = Object.keys(schoolMap).find(k => k.includes(nameLower) || nameLower.includes(k));
+      if (found) schoolId = schoolMap[found];
+    }
+
+    return {
+      rawName,
+      schoolId: schoolId || null,
+      wins:   parseNum(wIdx >= 0 ? cells[wIdx] : null),
+      losses: parseNum(lIdx >= 0 ? cells[lIdx] : null),
+      draws:  parseNum(dIdx >= 0 ? cells[dIdx] : null),
+      goals_for:    gfIdx >= 0 ? parseNum(cells[gfIdx]) : null,
+      goals_against:gaIdx >= 0 ? parseNum(cells[gaIdx]) : null,
+      conference_wins:   cwIdx >= 0 ? parseNum(cells[cwIdx]) : null,
+      conference_losses: clIdx >= 0 ? parseNum(cells[clIdx]) : null,
+      conference_draws:  ctIdx >= 0 ? parseNum(cells[ctIdx]) : null,
+      conference_ranking: confRankIdx >= 0 ? parseNum(cells[confRankIdx]) : null,
+      national_ranking:   natRankIdx >= 0 ? parseNum(cells[natRankIdx]) : null,
+      ncaa_tournament:    ncaaIdx >= 0 ? parseBool(cells[ncaaIdx]) : false,
+      ncaa_round:         ncaaRoundIdx >= 0 ? (cells[ncaaRoundIdx] || null) : null,
+    };
+  }).filter(Boolean);
+
+  return { rows, season };
+}
+
+async function confirmStatsCSVImport() {
+  if (!_csvParsed) return;
+  const { rows, season } = _csvParsed;
+  const matched = rows.filter(r => r.schoolId);
+  if (!matched.length) { toast('no schools matched — check your CSV format', true); return; }
+
+  const btn = document.getElementById('stats-csv-confirm-btn');
+  btn.disabled = true; btn.textContent = '⏳ importing...';
+  const fill  = document.getElementById('stats-import-fill');
+  const label = document.getElementById('stats-import-label');
+  const pct   = document.getElementById('stats-import-pct');
+  document.getElementById('stats-import-progress').style.display = 'block';
+
+  let saved = 0, errors = 0;
+  for (let i = 0; i < matched.length; i++) {
+    const r = matched[i];
+    fill.style.width = `${Math.round((i / matched.length) * 100)}%`;
+    pct.textContent  = `${Math.round((i / matched.length) * 100)}%`;
+    label.textContent = `saving ${r.rawName}...`;
+
+    // Build payload — only include non-null values
+    const payload = { school_id: r.schoolId, season: String(season), updated_at: new Date().toISOString() };
+    ['wins','losses','draws','goals_for','goals_against','conference_wins','conference_losses',
+     'conference_draws','conference_ranking','national_ranking','ncaa_tournament','ncaa_round'].forEach(k => {
+      if (r[k] !== null && r[k] !== undefined) payload[k] = r[k];
+    });
+
+    // Upsert: check if row exists for this school + season
+    const existing = state.stats.find(s => s.school_id === r.schoolId && String(s.season) === String(season));
+    let err;
+    if (existing) {
+      const res = await sb.from('team_stats').update(payload).eq('id', existing.id);
+      err = res.error;
+    } else {
+      const res = await sb.from('team_stats').insert([payload]);
+      err = res.error;
+    }
+    if (err) { errors++; console.warn('stats import error:', err.message, r.rawName); }
+    else saved++;
+
+    await new Promise(res => setTimeout(res, 60));
+  }
+
+  fill.style.width = '100%'; pct.textContent = '100%';
+  label.textContent = `done — ${saved} records saved${errors ? ` · ${errors} errors` : ''}`;
+  btn.disabled = false; btn.textContent = '✓ import';
+  await loadStats();
+  setStatsSeason(String(season)); // jump to the imported season
+  toast(`imported ${saved} schools for ${season}${errors ? ` · ${errors} write errors` : ''}`);
+  _csvParsed = null;
+}
+
+function showStatsMigrationsModal() {
+  const sql = `-- Run this in Supabase SQL Editor (once):
+ALTER TABLE team_stats ADD COLUMN IF NOT EXISTS goals_for integer;
+ALTER TABLE team_stats ADD COLUMN IF NOT EXISTS goals_against integer;
+ALTER TABLE team_stats ADD COLUMN IF NOT EXISTS conference_wins integer;
+ALTER TABLE team_stats ADD COLUMN IF NOT EXISTS conference_losses integer;
+ALTER TABLE team_stats ADD COLUMN IF NOT EXISTS conference_draws integer;
+ALTER TABLE team_stats ADD COLUMN IF NOT EXISTS ncaa_tournament boolean DEFAULT false;
+ALTER TABLE team_stats ADD COLUMN IF NOT EXISTS ncaa_round text;`;
+  const overlay = document.createElement('div');
+  overlay.style.cssText = `position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:9999;display:flex;align-items:center;justify-content:center`;
+  overlay.innerHTML = `
+    <div style="background:#1c1b19;border:1px solid #5c5a50;border-radius:12px;padding:28px;max-width:560px;width:90%;position:relative">
+      <button onclick="this.closest('div[style]').remove()" style="position:absolute;top:12px;right:16px;background:none;border:none;color:#c8c6bc;font-size:1.2rem;cursor:pointer">✕</button>
+      <h3 style="color:#f0ede3;margin:0 0 8px;font-size:1rem">Team Stats — New Columns Needed</h3>
+      <p style="color:#a8a69a;font-size:.83rem;margin:0 0 14px;line-height:1.6">
+        Run this once in <strong style="color:#f0ede3">Supabase → SQL Editor</strong> to add goals, conference record, and tournament columns.
+      </p>
+      <textarea onclick="this.select()" readonly style="width:100%;height:160px;background:#111;border:1px solid #3a3830;color:#7ec8a0;font-family:monospace;font-size:.78rem;padding:10px;border-radius:6px;resize:none;box-sizing:border-box">${sql}</textarea>
+      <button onclick="navigator.clipboard.writeText(this.previousElementSibling.value);this.textContent='✓ copied!';setTimeout(()=>this.textContent='copy SQL',1500)" style="margin-top:10px;padding:7px 18px;background:#3a6b50;border:none;color:#fff;border-radius:6px;cursor:pointer;font-size:.82rem">copy SQL</button>
+    </div>`;
+  document.body.appendChild(overlay);
 }
 
 // ===== BENCHMARKS =====
