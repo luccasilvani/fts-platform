@@ -530,6 +530,7 @@ tbody td{padding:12px 12px;font-size:.78rem;color:var(--cream);vertical-align:mi
         <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:10px">
           <input class="api-key-input" id="acad-api-key" placeholder="college scorecard api key — api.data.gov (free)" style="flex:1;min-width:220px;max-width:340px">
           <button class="btn-sync" id="acad-sync-btn" onclick="runAcademicSync()">▶ pull live data</button>
+          <button class="btn-sync" onclick="showMigrationsModal()" style="background:none;border-color:#5c8a6a;color:#7ec8a0" title="Show SQL to add required database columns">⚙ SQL setup</button>
           <button class="btn-sync" onclick="closeAcademicSync()" style="background:none;border-color:var(--cream-border);color:var(--cream-dim)">✕</button>
         </div>
         <div id="acad-progress-wrap" style="display:none">
@@ -1461,6 +1462,7 @@ async function runAcademicSync() {
 
   btn.disabled = true; btn.textContent = '⏳ syncing...';
   wrap.style.display = 'block';
+  label.textContent = 'checking database columns...';
 
   // share key with matchmaker and verifier
   const mm = document.getElementById('mm-api-key');
@@ -1468,25 +1470,55 @@ async function runAcademicSync() {
   if (mm) mm.value = apiKey;
   if (vr) vr.value = apiKey;
 
-  const { synced, errors } = await scorecardBatchSync(
+  // Validate API key with a single test call first
+  try {
+    label.textContent = 'validating api key...';
+    const testUrl = `https://api.data.gov/ed/collegescorecard/v1/schools?school.name=Harvard&fields=school.name&api_key=${apiKey}&per_page=1`;
+    const testRes = await fetch(testUrl, { signal: AbortSignal.timeout(10000) });
+    if (!testRes.ok) {
+      const errBody = await testRes.text();
+      toast(`api key error (${testRes.status}) — ${errBody.slice(0,80)}`, true);
+      btn.disabled = false; btn.textContent = '▶ pull live data';
+      return;
+    }
+  } catch(e) {
+    toast(`could not reach college scorecard api — check your connection`, true);
+    btn.disabled = false; btn.textContent = '▶ pull live data';
+    return;
+  }
+
+  const { synced, noMatch, noData, writeErrors, firstWriteError, missingCols } = await scorecardBatchSync(
     state.schools,
     apiKey,
-    (i, total) => {
+    (i, total, schoolName) => {
       const p = Math.round((i / total) * 100);
       fill.style.width = p + '%';
       pct.textContent  = p + '%';
-      label.textContent = `syncing ${state.schools[i]?.name || ''}... (${i+1}/${total})`;
+      label.textContent = `${schoolName || ''}… (${i+1}/${total})`;
     }
   );
 
   fill.style.width = '100%'; pct.textContent = '100%';
-  label.textContent = `done — ${synced} schools updated${errors ? ` · ${errors} not found in database` : ''}`;
+  const total = state.schools.length;
+  label.textContent = `done — ${synced} updated · ${noMatch} no scorecard match · ${noData} no data · ${writeErrors} write errors`;
 
   await loadBenchmarks();
   await loadSchools();
+  renderBenchmarks();
 
   btn.disabled = false; btn.textContent = '▶ pull live data';
-  toast(`academic sync complete — ${synced} schools updated`);
+
+  if (missingCols?.length) {
+    // Show migration modal instead of a simple toast
+    toast(`⚠ ${missingCols.length} column(s) missing — click "SQL setup" to fix`, true);
+    showMigrationsModal();
+  } else if (writeErrors > 0 && firstWriteError) {
+    toast(`${synced} updated · ${writeErrors} write errors — first: ${firstWriteError.slice(0,80)}`, true);
+  } else if (synced === 0 && noMatch === total) {
+    toast(`0 schools matched in College Scorecard — check your API key and school names`, true);
+  } else {
+    toast(`sync complete — ${synced} schools updated · ${noMatch} unmatched · ${noData} no data available`);
+  }
 }
 
 // Matchmaker's sync button (shared entry point)
@@ -1495,79 +1527,163 @@ async function syncLiveSchoolData() {
   if (!apiKey) { toast('enter your college scorecard api key — get one free at api.data.gov', true); return; }
   const btn = document.querySelector('#tab-scholarships .btn-sync');
   if (btn) { btn.disabled = true; btn.textContent = '↻ syncing...'; }
-  const { synced, errors } = await scorecardBatchSync(state.schools, apiKey, () => {});
+  const { synced, noMatch, noData, writeErrors, firstWriteError, missingCols } = await scorecardBatchSync(state.schools, apiKey, () => {});
   await loadBenchmarks(); await loadSchools();
   if (btn) { btn.disabled = false; btn.textContent = '↻ sync live data'; }
-  toast(`synced ${synced} schools${errors ? ` · ${errors} not found` : ''}`);
+  if (missingCols?.length) {
+    toast(`⚠ db columns missing — open academics tab → SQL setup`, true);
+    showMigrationsModal();
+  } else if (writeErrors > 0 && firstWriteError) {
+    toast(`${synced} synced · ${writeErrors} errors — ${firstWriteError.slice(0,60)}`, true);
+  } else {
+    toast(`synced ${synced} · ${noMatch} unmatched · ${noData} no data`);
+  }
 }
 
 // ===== SHARED SCORECARD BATCH =====
 // Track which extra columns exist in academic_benchmarks (detected at runtime)
 let extraColsChecked = false;
 let hasTuitionCol = false, hasAdmRateCol = false, hasAvgSatCol = false;
+let hasLocationCol = false; // on schools table
 
 async function detectExtraColumns() {
-  if (extraColsChecked) return;
-  // Try a minimal insert with extra cols to see which ones exist
-  // Safer: just attempt a select and check the shape of existing rows
-  if (state.benchmarks.length) {
-    const sample = state.benchmarks[0];
-    hasTuitionCol  = 'tuition'  in sample;
-    hasAdmRateCol  = 'adm_rate' in sample;
-    hasAvgSatCol   = 'avg_sat'  in sample;
-  } else {
-    // No rows yet — fetch one row with all columns to detect schema
-    const { data } = await sb.from('academic_benchmarks').select('*').limit(1);
-    if (data?.[0]) {
-      hasTuitionCol  = 'tuition'  in data[0];
-      hasAdmRateCol  = 'adm_rate' in data[0];
-      hasAvgSatCol   = 'avg_sat'  in data[0];
-    }
-  }
+  // Probe each column individually via a real query — works even when table is empty
+  // PostgREST returns an error if the column doesn't exist in the schema
+  const check = async (table, col) => {
+    const { error } = await sb.from(table).select(col).limit(1);
+    return !error; // no error → column exists
+  };
+  [hasTuitionCol, hasAdmRateCol, hasAvgSatCol, hasLocationCol] = await Promise.all([
+    check('academic_benchmarks', 'tuition'),
+    check('academic_benchmarks', 'adm_rate'),
+    check('academic_benchmarks', 'avg_sat'),
+    check('schools', 'location'),
+  ]);
   extraColsChecked = true;
+  // Warn if migration hasn't been run
+  const missing = [];
+  if (!hasTuitionCol)  missing.push('tuition (academic_benchmarks)');
+  if (!hasAdmRateCol)  missing.push('adm_rate (academic_benchmarks)');
+  if (!hasAvgSatCol)   missing.push('avg_sat (academic_benchmarks)');
+  if (!hasLocationCol) missing.push('location (schools)');
+  if (missing.length) {
+    console.warn('[FTS] Missing columns:', missing);
+    return missing; // caller can surface this to user
+  }
+  return [];
+}
+
+function showMigrationsModal() {
+  const sql = `-- Run this in your Supabase SQL Editor (once):
+ALTER TABLE schools ADD COLUMN IF NOT EXISTS location text;
+ALTER TABLE academic_benchmarks ADD COLUMN IF NOT EXISTS tuition integer;
+ALTER TABLE academic_benchmarks ADD COLUMN IF NOT EXISTS adm_rate integer;
+ALTER TABLE academic_benchmarks ADD COLUMN IF NOT EXISTS avg_sat integer;`;
+  const overlay = document.createElement('div');
+  overlay.style.cssText = `position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:9999;display:flex;align-items:center;justify-content:center`;
+  overlay.innerHTML = `
+    <div style="background:#1c1b19;border:1px solid #5c5a50;border-radius:12px;padding:28px;max-width:560px;width:90%;position:relative">
+      <button onclick="this.closest('div[style]').remove()" style="position:absolute;top:12px;right:16px;background:none;border:none;color:#c8c6bc;font-size:1.2rem;cursor:pointer">✕</button>
+      <h3 style="color:#f0ede3;margin:0 0 8px;font-size:1rem">Database Columns Missing</h3>
+      <p style="color:#a8a69a;font-size:.83rem;margin:0 0 14px;line-height:1.6">
+        The academic sync needs these columns added to your Supabase tables.<br>
+        Go to <strong style="color:#f0ede3">Supabase → SQL Editor</strong>, paste the code below, and click Run.
+      </p>
+      <textarea onclick="this.select()" readonly style="width:100%;height:130px;background:#111;border:1px solid #3a3830;color:#7ec8a0;font-family:monospace;font-size:.78rem;padding:10px;border-radius:6px;resize:none;box-sizing:border-box">${sql}</textarea>
+      <button onclick="navigator.clipboard.writeText(this.previousElementSibling.value);this.textContent='✓ copied!';setTimeout(()=>this.textContent='copy SQL',1500)" style="margin-top:10px;padding:7px 18px;background:#3a6b50;border:none;color:#fff;border-radius:6px;cursor:pointer;font-size:.82rem">copy SQL</button>
+    </div>`;
+  document.body.appendChild(overlay);
+}
+
+// Build fuzzy name variants for College Scorecard matching
+function scorecardNameVariants(name) {
+  const variants = [name];
+  const stripped = name
+    .replace(/\bUniversity\b/gi, '').replace(/\bCollege\b/gi, '')
+    .replace(/\bInstitute\b/gi, '').replace(/\bof\b/gi, '')
+    .replace(/\s{2,}/g, ' ').trim();
+  if (stripped && stripped !== name) variants.push(stripped);
+  // Try first 2–3 words
+  const words = name.split(' ');
+  if (words.length > 3) variants.push(words.slice(0, 3).join(' '));
+  if (words.length > 2) variants.push(words.slice(0, 2).join(' '));
+  // Dedupe
+  return [...new Set(variants)];
+}
+
+async function fetchScorecardSchool(nameVariants, apiKey) {
+  const FIELDS = 'school.name,school.city,school.state,latest.admissions.sat_scores.average.overall,latest.admissions.admission_rate.overall,latest.cost.tuition.out_of_state';
+  for (const variant of nameVariants) {
+    const url = `https://api.data.gov/ed/collegescorecard/v1/schools?school.name=${encodeURIComponent(variant)}&fields=${FIELDS}&api_key=${apiKey}&per_page=3`;
+    const res = await fetch(url, { signal: AbortSignal.timeout(12000) });
+    if (!res.ok) {
+      if (res.status === 429) throw new Error('rate_limit');
+      throw new Error(`api_http_${res.status}`);
+    }
+    const json = await res.json();
+    if (json.results?.length) return json.results[0];
+  }
+  return null; // no match across all variants
 }
 
 async function scorecardBatchSync(schools, apiKey, onProgress) {
-  await detectExtraColumns();
-  let synced = 0, errors = 0;
+  // Re-detect columns every run (user may have just run migrations)
+  extraColsChecked = false;
+  const missingCols = await detectExtraColumns();
+
+  let synced = 0, noMatch = 0, noData = 0, writeErrors = 0;
+  const firstWriteError = { msg: null };
+
   for (let i = 0; i < schools.length; i++) {
     const school = schools[i];
-    onProgress(i, schools.length);
+    onProgress(i, schools.length, school.name);
     try {
-      const url = `https://api.data.gov/ed/collegescorecard/v1/schools?school.name=${encodeURIComponent(school.name)}&fields=school.name,school.city,school.state,latest.admissions.sat_scores.average.overall,latest.admissions.admission_rate.overall,latest.cost.tuition.out_of_state&api_key=${apiKey}&per_page=1`;
-      const res = await fetch(url, { signal: AbortSignal.timeout(10000) });
-      if (!res.ok) { errors++; continue; }
-      const json = await res.json();
-      const r = json.results?.[0];
-      if (!r) continue;
+      const variants = scorecardNameVariants(school.name);
+      let r;
+      try {
+        r = await fetchScorecardSchool(variants, apiKey);
+      } catch(apiErr) {
+        if (apiErr.message === 'rate_limit') {
+          // Back off and retry once
+          await new Promise(resolve => setTimeout(resolve, 2000));
+          r = await fetchScorecardSchool(variants, apiKey);
+        } else {
+          writeErrors++;
+          if (!firstWriteError.msg) firstWriteError.msg = apiErr.message;
+          continue;
+        }
+      }
+
+      if (!r) { noMatch++; continue; }
+
       const satAvg     = r['latest.admissions.sat_scores.average.overall'];
       const admRate    = r['latest.admissions.admission_rate.overall'];
       const tuitionOut = r['latest.cost.tuition.out_of_state'];
       const city       = r['school.city'];
       const stateAbbr  = r['school.state'];
 
-      // Auto-fill location on schools table if blank
-      if (city && stateAbbr && !school.location) {
+      // Auto-fill location on schools table if blank and column exists
+      if (hasLocationCol && city && stateAbbr && !school.location) {
         const locVal = `${city}, ${stateAbbr}`;
         const { error: locErr } = await sb.from('schools').update({ location: locVal }).eq('id', school.id);
-        if (!locErr) school.location = locVal; // update in-memory
+        if (!locErr) school.location = locVal;
       }
 
-      if (!satAvg && !tuitionOut && !admRate) continue;
+      if (!satAvg && !tuitionOut && !admRate) { noData++; continue; }
 
       const existing = state.benchmarks.find(b => b.school_id === school.id);
       const admNote  = admRate ? `[adm rate: ${(admRate*100).toFixed(1)}%]` : '';
       const cleanNotes = `${(existing?.notes||'').replace(/\[adm rate:[^\]]*\]/g,'').trim()} ${admNote}`.trim();
 
-      // Build payload with only columns that exist
+      // Build payload with only columns confirmed to exist
       const payload = {
         school_id: school.id,
         notes: cleanNotes,
         updated_at: new Date().toISOString(),
         ...(satAvg ? { min_sat: Math.round(satAvg * 0.85) } : {}),
-        ...(satAvg && hasAvgSatCol  ? { avg_sat: Math.round(satAvg) } : {}),
-        ...(tuitionOut && hasTuitionCol  ? { tuition: tuitionOut } : {}),
-        ...(admRate    && hasAdmRateCol  ? { adm_rate: Math.round(admRate * 100) } : {}),
+        ...(satAvg && hasAvgSatCol   ? { avg_sat: Math.round(satAvg) } : {}),
+        ...(tuitionOut && hasTuitionCol ? { tuition: tuitionOut } : {}),
+        ...(admRate && hasAdmRateCol    ? { adm_rate: Math.round(admRate * 100) } : {}),
       };
 
       let writeErr;
@@ -1580,23 +1696,37 @@ async function scorecardBatchSync(schools, apiKey, onProgress) {
       }
 
       if (writeErr) {
-        // Column likely missing — retry with only guaranteed base columns
-        if (writeErr.message?.includes('column')) {
+        // Log first write error for surfacing to user
+        if (!firstWriteError.msg) firstWriteError.msg = writeErr.message;
+        // Column mismatch — retry with base columns only
+        if (writeErr.message?.includes('column') || writeErr.code === '42703') {
           const basePayload = {
             school_id: school.id,
             notes: cleanNotes,
             updated_at: new Date().toISOString(),
             ...(satAvg ? { min_sat: Math.round(satAvg * 0.85) } : {}),
           };
-          if (existing) await sb.from('academic_benchmarks').update(basePayload).eq('id', existing.id);
-          else await sb.from('academic_benchmarks').insert([basePayload]);
-        } else { errors++; continue; }
+          const retryOp = existing
+            ? sb.from('academic_benchmarks').update(basePayload).eq('id', existing.id)
+            : sb.from('academic_benchmarks').insert([basePayload]);
+          const { error: retryErr } = await retryOp;
+          if (retryErr) { writeErrors++; continue; }
+          // Base write succeeded
+          synced++;
+        } else {
+          writeErrors++;
+          continue;
+        }
+      } else {
+        synced++;
       }
-      synced++;
-    } catch(e) { errors++; }
+    } catch(e) {
+      writeErrors++;
+      if (!firstWriteError.msg) firstWriteError.msg = e.message;
+    }
     await new Promise(r => setTimeout(r, 120));
   }
-  return { synced, errors };
+  return { synced, noMatch, noData, writeErrors, firstWriteError: firstWriteError.msg, missingCols };
 }
 
 // ===== CONTACT EMAIL DOMAIN VALIDATION =====
@@ -1669,7 +1799,7 @@ async function runVerifier() {
 
   // Phase 2: scorecard sync if API key provided
   if (apiKey) {
-    const { synced, errors } = await scorecardBatchSync(state.schools, apiKey, (i, total) => {
+    const { synced, noMatch, noData, writeErrors, firstWriteError, missingCols } = await scorecardBatchSync(state.schools, apiKey, (i, total) => {
       fill.style.width = `${50 + Math.round((i / total) * 50)}%`;
     });
     await loadBenchmarks(); await loadSchools();
@@ -1678,7 +1808,11 @@ async function runVerifier() {
       const b = state.benchmarks.find(bm => bm.school_id === r.school.id);
       r.academic = b || null;
     });
-    toast(`academic sync: ${synced} updated${errors ? ` · ${errors} errors` : ''}`);
+    if (missingCols?.length) {
+      toast(`⚠ db columns missing — click SQL setup in academics tab`, true);
+    } else {
+      toast(`academic sync: ${synced} updated · ${noMatch} unmatched${writeErrors ? ` · ${writeErrors} errors` : ''}`);
+    }
   } else {
     // just pull local benchmark data
     verifierResults.forEach(r => {
