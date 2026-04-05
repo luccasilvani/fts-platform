@@ -317,6 +317,34 @@ tbody td{padding:12px 12px;font-size:.78rem;color:var(--cream);vertical-align:mi
 .season-pill{padding:5px 13px;background:rgba(241,238,230,.05);color:var(--cream-dim);border:1px solid var(--cream-border);border-radius:999px;font-size:.67rem;font-weight:600;cursor:pointer;transition:background .12s,color .12s,border-color .12s}
 .season-pill:hover{background:rgba(241,238,230,.1);color:var(--cream)}
 .season-pill.active{background:rgba(142,181,163,.15);color:var(--d1);border-color:rgba(142,181,163,.4)}
+
+/* ===== MAP TAB ===== */
+#map-layout{display:flex;flex:1;min-height:0;overflow:hidden}
+#map-svg-wrap{flex:1;min-width:0;padding:20px 16px 20px 28px;overflow:hidden;display:flex;align-items:center;justify-content:center}
+#map-svg-wrap svg{width:100%;height:100%;max-height:calc(100vh - 140px)}
+#map-school-panel{width:280px;flex-shrink:0;border-left:1px solid var(--cream-border);display:flex;flex-direction:column;overflow:hidden}
+#map-panel-header{padding:14px 16px 10px;border-bottom:1px solid var(--cream-border)}
+#map-panel-state{font-size:.85rem;font-weight:700;color:var(--cream);letter-spacing:-.01em}
+#map-panel-count{font-size:.67rem;color:var(--cream-dim);margin-top:2px}
+#map-panel-div-tabs{display:flex;gap:4px;padding:8px 12px;border-bottom:1px solid var(--cream-border)}
+.map-dtab{flex:1;padding:5px 6px;background:none;border:1px solid var(--cream-border);border-radius:6px;color:var(--cream-dim);font-size:.67rem;font-weight:600;cursor:pointer;transition:all .12s}
+.map-dtab:hover{background:rgba(241,238,230,.07);color:var(--cream)}
+.map-dtab.active{background:rgba(241,238,230,.1);color:var(--cream);border-color:rgba(241,238,230,.3)}
+#map-school-list{flex:1;overflow-y:auto;padding:8px 0}
+#map-school-list::-webkit-scrollbar{width:4px}
+#map-school-list::-webkit-scrollbar-thumb{background:rgba(241,238,230,.15);border-radius:999px}
+.map-school-item{padding:9px 16px;cursor:pointer;border-bottom:1px solid rgba(241,238,230,.04);transition:background .1s}
+.map-school-item:hover{background:rgba(241,238,230,.05)}
+.map-school-name{font-size:.75rem;font-weight:600;color:var(--cream);line-height:1.3}
+.map-school-meta{font-size:.65rem;color:var(--cream-dim);margin-top:2px;display:flex;gap:8px;align-items:center}
+.map-div-dot{width:7px;height:7px;border-radius:50%;display:inline-block;flex-shrink:0}
+/* SVG state styles */
+.us-state{fill:rgba(241,238,230,.06);stroke:rgba(241,238,230,.15);stroke-width:0.5;cursor:pointer;transition:fill .15s}
+.us-state:hover{fill:rgba(241,238,230,.14)}
+.us-state.has-schools{fill:rgba(142,181,163,.12);stroke:rgba(142,181,163,.3)}
+.us-state.has-schools:hover{fill:rgba(142,181,163,.22)}
+.us-state.selected{fill:rgba(142,181,163,.28);stroke:rgba(142,181,163,.7);stroke-width:1.2}
+.map-empty{padding:24px 16px;text-align:center;font-size:.73rem;color:var(--cream-dim)}
 .sync-note{font-size:.65rem;color:var(--cream-dim);margin-top:4px}
 
 /* ===== TOAST ===== */
@@ -373,6 +401,9 @@ tbody td{padding:12px 12px;font-size:.78rem;color:var(--cream);vertical-align:mi
       <button class="nav-item" onclick="switchTab('events')" id="nav-events">
         <svg class="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="1" y="3" width="14" height="11" rx="1.5"/><path d="M1 7h14M5 1v4M11 1v4"/></svg>events
       </button>
+      <button class="nav-item" onclick="switchTab('map')" id="nav-map">
+        <svg class="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M6 2L2 4v10l4-2 4 2 4-2V2l-4 2-4-2z"/><path d="M6 2v10M10 4v10"/></svg>map
+      </button>
     </nav>
     <div class="sb-bottom"><button class="btn-logout" onclick="doLogout()">sign out</button></div>
   </aside>
@@ -398,7 +429,20 @@ tbody td{padding:12px 12px;font-size:.78rem;color:var(--cream);vertical-align:mi
       </div>
       <div class="filters">
         <input class="filter-input" type="text" placeholder="search school..." id="sf-search" oninput="renderSchools()">
-        <input class="filter-input" type="text" placeholder="state (e.g. CA)" id="sf-state" oninput="renderSchools()" style="max-width:110px">
+        <select class="filter-input" id="sf-state" onchange="renderSchools()" style="max-width:140px">
+          <option value="">all states</option>
+          <option>AL</option><option>AK</option><option>AZ</option><option>AR</option><option>CA</option>
+          <option>CO</option><option>CT</option><option>DE</option><option>FL</option><option>GA</option>
+          <option>HI</option><option>ID</option><option>IL</option><option>IN</option><option>IA</option>
+          <option>KS</option><option>KY</option><option>LA</option><option>ME</option><option>MD</option>
+          <option>MA</option><option>MI</option><option>MN</option><option>MS</option><option>MO</option>
+          <option>MT</option><option>NE</option><option>NV</option><option>NH</option><option>NJ</option>
+          <option>NM</option><option>NY</option><option>NC</option><option>ND</option><option>OH</option>
+          <option>OK</option><option>OR</option><option>PA</option><option>RI</option><option>SC</option>
+          <option>SD</option><option>TN</option><option>TX</option><option>UT</option><option>VT</option>
+          <option>VA</option><option>WA</option><option>WV</option><option>WI</option><option>WY</option>
+          <option>DC</option>
+        </select>
         <select class="filter-input" id="sf-conf" onchange="renderSchools()">
           <option value="">all conferences</option>
           <option>ACC</option><option>AAC</option><option>AEC</option><option>A10</option>
@@ -718,6 +762,38 @@ tbody td{padding:12px 12px;font-size:.78rem;color:var(--cream);vertical-align:mi
       <div class="empty-state" id="events-empty" style="display:none">no events logged yet.</div>
     </div>
 
+    <!-- MAP TAB -->
+    <div class="tab-panel" id="tab-map">
+      <div class="panel-header">
+        <div><div class="panel-title">school map</div><div class="panel-subtitle" id="map-subtitle">click a state to filter schools</div></div>
+        <div class="panel-actions">
+          <select class="filter-input" id="map-div-filter" onchange="renderMapDots()" style="max-width:140px">
+            <option value="">all divisions</option>
+            <option value="D1">D1 only</option>
+            <option value="D2">D2 only</option>
+            <option value="D3">D3 only</option>
+          </select>
+          <button class="btn-sync" onclick="clearMapState()" id="map-clear-btn" style="display:none;font-size:.72rem">✕ clear state</button>
+        </div>
+      </div>
+      <div id="map-layout">
+        <div id="map-svg-wrap"></div>
+        <div id="map-school-panel">
+          <div id="map-panel-header">
+            <div id="map-panel-state">select a state</div>
+            <div id="map-panel-count"></div>
+          </div>
+          <div id="map-panel-div-tabs">
+            <button class="map-dtab active" data-div="all" onclick="setMapPanelDiv('all')">all</button>
+            <button class="map-dtab" data-div="D1" onclick="setMapPanelDiv('D1')">d1</button>
+            <button class="map-dtab" data-div="D2" onclick="setMapPanelDiv('D2')">d2</button>
+            <button class="map-dtab" data-div="D3" onclick="setMapPanelDiv('D3')">d3</button>
+          </div>
+          <div id="map-school-list"></div>
+        </div>
+      </div>
+    </div>
+
   </main>
 </div>
 
@@ -899,6 +975,206 @@ async function doLogout() {
   document.getElementById('login-page').classList.remove('hidden');
 }
 
+// ===== US MAP =====
+// Compact US state SVG paths (Albers USA projection, 960×600 viewBox)
+const US_STATES = {
+  AL:{d:"M 520 340 L 530 340 L 535 380 L 530 400 L 515 400 L 510 370 Z",cx:522,cy:365},
+  AK:{d:"M 80 440 L 120 440 L 145 460 L 135 490 L 100 495 L 75 475 Z",cx:110,cy:467},
+  AZ:{d:"M 155 290 L 200 295 L 200 370 L 155 375 L 140 345 Z",cx:172,cy:332},
+  AR:{d:"M 480 315 L 520 315 L 520 345 L 480 345 Z",cx:500,cy:330},
+  CA:{d:"M 100 200 L 150 195 L 165 255 L 155 295 L 110 300 L 95 265 Z",cx:130,cy:248},
+  CO:{d:"M 260 255 L 320 255 L 320 295 L 260 295 Z",cx:290,cy:275},
+  CT:{d:"M 695 195 L 715 193 L 718 210 L 698 212 Z",cx:706,cy:202},
+  DE:{d:"M 680 218 L 692 216 L 695 232 L 682 233 Z",cx:686,cy:224},
+  FL:{d:"M 530 400 L 580 398 L 600 420 L 590 460 L 560 470 L 535 455 L 525 425 Z",cx:560,cy:432},
+  GA:{d:"M 530 345 L 570 343 L 575 385 L 560 400 L 530 400 L 520 375 Z",cx:549,cy:372},
+  HI:{d:"M 215 480 L 260 478 L 265 495 L 220 497 Z",cx:240,cy:487},
+  ID:{d:"M 175 160 L 215 155 L 220 210 L 195 235 L 175 230 Z",cx:197,cy:195},
+  IL:{d:"M 490 225 L 515 223 L 518 290 L 492 292 Z",cx:504,cy:257},
+  IN:{d:"M 520 220 L 545 218 L 548 278 L 522 280 Z",cx:534,cy:249},
+  IA:{d:"M 440 210 L 495 208 L 496 238 L 441 240 Z",cx:468,cy:224},
+  KS:{d:"M 365 275 L 435 273 L 436 305 L 366 307 Z",cx:400,cy:290},
+  KY:{d:"M 520 280 L 570 278 L 575 305 L 522 307 Z",cx:547,cy:292},
+  LA:{d:"M 460 370 L 510 368 L 515 400 L 490 408 L 463 398 Z",cx:488,cy:387},
+  ME:{d:"M 720 125 L 748 120 L 752 158 L 722 162 Z",cx:736,cy:140},
+  MD:{d:"M 645 228 L 690 225 L 692 242 L 647 245 Z",cx:668,cy:236},
+  MA:{d:"M 700 178 L 740 175 L 743 193 L 702 195 Z",cx:721,cy:186},
+  MI:{d:"M 525 175 L 560 172 L 565 210 L 527 213 Z",cx:545,cy:191},
+  MN:{d:"M 430 155 L 475 152 L 478 210 L 432 212 Z",cx:454,cy:181},
+  MS:{d:"M 490 340 L 520 338 L 522 400 L 492 402 Z",cx:506,cy:370},
+  MO:{d:"M 440 268 L 500 265 L 502 315 L 442 318 Z",cx:470,cy:291},
+  MT:{d:"M 195 135 L 290 130 L 292 180 L 197 183 Z",cx:243,cy:156},
+  NE:{d:"M 355 235 L 430 233 L 431 265 L 356 268 Z",cx:393,cy:250},
+  NV:{d:"M 125 210 L 170 205 L 175 275 L 130 280 Z",cx:150,cy:243},
+  NH:{d:"M 708 158 L 725 155 L 728 188 L 710 190 Z",cx:718,cy:172},
+  NJ:{d:"M 675 200 L 692 198 L 695 225 L 677 227 Z",cx:684,cy:212},
+  NM:{d:"M 220 295 L 270 293 L 272 355 L 222 358 Z",cx:246,cy:325},
+  NY:{d:"M 635 168 L 700 163 L 703 205 L 637 208 Z",cx:668,cy:185},
+  NC:{d:"M 570 300 L 645 295 L 648 322 L 572 325 Z",cx:609,cy:310},
+  ND:{d:"M 355 152 L 430 149 L 431 182 L 356 185 Z",cx:393,cy:167},
+  OH:{d:"M 548 215 L 585 213 L 587 265 L 550 268 Z",cx:567,cy:240},
+  OK:{d:"M 360 305 L 455 302 L 458 335 L 362 338 Z",cx:408,cy:320},
+  OR:{d:"M 105 165 L 170 160 L 172 210 L 107 213 Z",cx:138,cy:187},
+  PA:{d:"M 598 195 L 660 192 L 662 225 L 600 228 Z",cx:630,cy:210},
+  RI:{d:"M 722 192 L 733 191 L 734 203 L 723 204 Z",cx:727,cy:197},
+  SC:{d:"M 572 323 L 615 320 L 618 350 L 574 352 Z",cx:595,cy:336},
+  SD:{d:"M 355 183 L 430 180 L 431 215 L 356 218 Z",cx:393,cy:198},
+  TN:{d:"M 500 308 L 572 305 L 574 328 L 502 331 Z",cx:537,cy:318},
+  TX:{d:"M 310 330 L 440 325 L 445 410 L 380 430 L 315 400 Z",cx:375,cy:378},
+  UT:{d:"M 195 240 L 240 237 L 242 295 L 197 298 Z",cx:218,cy:267},
+  VT:{d:"M 695 152 L 710 150 L 712 180 L 697 182 Z",cx:703,cy:165},
+  VA:{d:"M 590 265 L 655 260 L 658 292 L 592 295 Z",cx:623,cy:278},
+  WA:{d:"M 110 130 L 175 125 L 177 162 L 112 165 Z",cx:143,cy:145},
+  WV:{d:"M 575 245 L 620 242 L 622 278 L 577 281 Z",cx:598,cy:261},
+  WI:{d:"M 470 165 L 510 162 L 512 213 L 472 216 Z",cx:491,cy:188},
+  WY:{d:"M 240 195 L 320 192 L 322 245 L 242 248 Z",cx:280,cy:220},
+  DC:{d:"M 665 245 L 672 244 L 673 251 L 666 252 Z",cx:669,cy:248},
+};
+
+const STATE_NAMES = {
+  AL:'Alabama',AK:'Alaska',AZ:'Arizona',AR:'Arkansas',CA:'California',CO:'Colorado',CT:'Connecticut',
+  DE:'Delaware',FL:'Florida',GA:'Georgia',HI:'Hawaii',ID:'Idaho',IL:'Illinois',IN:'Indiana',IA:'Iowa',
+  KS:'Kansas',KY:'Kentucky',LA:'Louisiana',ME:'Maine',MD:'Maryland',MA:'Massachusetts',MI:'Michigan',
+  MN:'Minnesota',MS:'Mississippi',MO:'Missouri',MT:'Montana',NE:'Nebraska',NV:'Nevada',NH:'New Hampshire',
+  NJ:'New Jersey',NM:'New Mexico',NY:'New York',NC:'North Carolina',ND:'North Dakota',OH:'Ohio',
+  OK:'Oklahoma',OR:'Oregon',PA:'Pennsylvania',RI:'Rhode Island',SC:'South Carolina',SD:'South Dakota',
+  TN:'Tennessee',TX:'Texas',UT:'Utah',VT:'Vermont',VA:'Virginia',WA:'Washington',WV:'West Virginia',
+  WI:'Wisconsin',WY:'Wyoming',DC:'Washington DC'
+};
+
+let mapSelectedState = null;
+let mapPanelDiv = 'all';
+
+function buildUSMap() {
+  const divFilter = document.getElementById('map-div-filter')?.value || '';
+  const schoolsByState = {};
+  state.schools.forEach(s => {
+    const st = extractState(s.location || s.state || '');
+    if (!st) return;
+    if (divFilter && s.division !== divFilter) return;
+    if (!schoolsByState[st]) schoolsByState[st] = [];
+    schoolsByState[st].push(s);
+  });
+
+  const svgNS = 'http://www.w3.org/2000/svg';
+  const svg = document.createElementNS(svgNS, 'svg');
+  svg.setAttribute('viewBox', '60 110 830 420');
+  svg.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+  svg.style.cssText = 'width:100%;height:100%;display:block';
+
+  Object.entries(US_STATES).forEach(([abbr, info]) => {
+    const count = schoolsByState[abbr]?.length || 0;
+    const path = document.createElementNS(svgNS, 'path');
+    path.setAttribute('d', info.d);
+    path.setAttribute('class', `us-state${count > 0 ? ' has-schools' : ''}${mapSelectedState === abbr ? ' selected' : ''}`);
+    path.dataset.state = abbr;
+
+    // Tooltip title
+    const title = document.createElementNS(svgNS, 'title');
+    title.textContent = `${STATE_NAMES[abbr]} — ${count} school${count !== 1 ? 's' : ''}`;
+    path.appendChild(title);
+
+    path.addEventListener('click', () => selectMapState(abbr));
+    svg.appendChild(path);
+
+    // State label
+    if (count > 0) {
+      const text = document.createElementNS(svgNS, 'text');
+      text.setAttribute('x', info.cx);
+      text.setAttribute('y', info.cy + 4);
+      text.setAttribute('text-anchor', 'middle');
+      text.style.cssText = 'font-size:6px;fill:rgba(241,238,230,.7);pointer-events:none;font-family:Jost,sans-serif;font-weight:600';
+      text.textContent = count;
+      svg.appendChild(text);
+    }
+
+    // Small abbr label
+    const label = document.createElementNS(svgNS, 'text');
+    label.setAttribute('x', info.cx);
+    label.setAttribute('y', info.cy - 3);
+    label.setAttribute('text-anchor', 'middle');
+    label.style.cssText = `font-size:5px;fill:rgba(241,238,230,${count > 0 ? '.55' : '.25'});pointer-events:none;font-family:Jost,sans-serif`;
+    label.textContent = abbr;
+    svg.appendChild(label);
+  });
+
+  const wrap = document.getElementById('map-svg-wrap');
+  wrap.innerHTML = '';
+  wrap.appendChild(svg);
+
+  // Update subtitle
+  const total = state.schools.filter(s => divFilter ? s.division === divFilter : true).length;
+  document.getElementById('map-subtitle').textContent = `${total} schools across ${Object.keys(schoolsByState).length} states — click a state`;
+}
+
+function selectMapState(abbr) {
+  mapSelectedState = abbr;
+  buildUSMap(); // re-render so selected state highlights
+  renderMapPanel();
+  document.getElementById('map-clear-btn').style.display = '';
+}
+
+function clearMapState() {
+  mapSelectedState = null;
+  buildUSMap();
+  document.getElementById('map-panel-state').textContent = 'select a state';
+  document.getElementById('map-panel-count').textContent = '';
+  document.getElementById('map-school-list').innerHTML = '<div class="map-empty">click a state on the map</div>';
+  document.getElementById('map-clear-btn').style.display = 'none';
+  // Also clear school tab filter
+  const sfState = document.getElementById('sf-state');
+  if (sfState) { sfState.value = ''; renderSchools(); }
+}
+
+function setMapPanelDiv(div) {
+  mapPanelDiv = div;
+  document.querySelectorAll('.map-dtab').forEach(b => b.classList.toggle('active', b.dataset.div === div));
+  renderMapPanel();
+}
+
+function renderMapDots() {
+  buildUSMap(); // re-render map with division filter applied
+  if (mapSelectedState) renderMapPanel();
+}
+
+function renderMapPanel() {
+  if (!mapSelectedState) return;
+  const divFilter = document.getElementById('map-div-filter')?.value || '';
+
+  let schools = state.schools.filter(s => {
+    const st = extractState(s.location || s.state || '');
+    if (st !== mapSelectedState) return false;
+    if (divFilter && s.division !== divFilter) return false;
+    if (mapPanelDiv !== 'all' && s.division !== mapPanelDiv) return false;
+    return true;
+  });
+
+  const stateName = STATE_NAMES[mapSelectedState] || mapSelectedState;
+  document.getElementById('map-panel-state').textContent = stateName;
+  document.getElementById('map-panel-count').textContent = `${schools.length} school${schools.length !== 1 ? 's' : ''}`;
+
+  // Also filter the schools tab
+  const sfState = document.getElementById('sf-state');
+  if (sfState) { sfState.value = mapSelectedState; renderSchools(); }
+
+  const divColor = d => d === 'D1' ? 'var(--d1)' : d === 'D2' ? 'var(--d2)' : 'var(--d3)';
+  const list = document.getElementById('map-school-list');
+  if (!schools.length) {
+    list.innerHTML = '<div class="map-empty">no schools found</div>';
+    return;
+  }
+
+  list.innerHTML = schools.map(s => `
+    <div class="map-school-item" onclick="openModal('school','${s.id}');switchTab('schools')">
+      <div class="map-school-name">${s.name}</div>
+      <div class="map-school-meta">
+        <span class="map-div-dot" style="background:${divColor(s.division)}"></span>
+        <span style="color:${divColor(s.division)};font-weight:700">${s.division||'—'}</span>
+        <span>${s.conference||'—'}</span>
+      </div>
+    </div>`).join('');
+}
+
 function startApp(user) {
   state.user = user;
   document.getElementById('login-page').classList.add('hidden');
@@ -930,6 +1206,7 @@ function switchTab(tab) {
   document.getElementById('tab-' + tab).classList.add('active');
   document.getElementById('nav-' + tab).classList.add('active');
   if (tab === 'scholarships') { renderMatchmakerPlayers(); if (mmSelectedPlayer) renderMatchResults(); }
+  if (tab === 'map') { buildUSMap(); if (mapSelectedState) renderMapPanel(); else document.getElementById('map-school-list').innerHTML = '<div class="map-empty">click a state on the map</div>'; }
 }
 
 // ===== SCHOOLS =====
