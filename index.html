@@ -5,6 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>FTS — Internal Platform</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/d3@7/dist/d3.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/topojson-client@3/dist/topojson-client.min.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=Jost:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
 :root {
@@ -293,21 +295,32 @@ tbody td{padding:12px 12px;font-size:.78rem;color:var(--cream);vertical-align:mi
 .mm-strong-matches{font-size:.72rem;color:var(--cream-dim);margin-top:4px}
 .mm-section-title{font-size:.62rem;font-weight:600;letter-spacing:.09em;color:var(--cream-dim);margin-bottom:12px;margin-top:6px}
 .mm-filters{display:flex;gap:9px;margin-bottom:18px;flex-wrap:wrap;align-items:center}
-.grade-badge{display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;border-radius:8px;font-size:.84rem;font-weight:800;flex-shrink:0}
-.grade-A{background:rgba(111,168,134,.22);color:var(--green)}
-.grade-B{background:rgba(142,181,163,.18);color:var(--d1)}
-.grade-C{background:rgba(196,176,122,.18);color:var(--yellow)}
+.grade-badge{display:inline-flex;align-items:center;justify-content:center;width:34px;height:34px;border-radius:9px;font-size:.9rem;font-weight:800;flex-shrink:0;position:relative}
+.grade-A{background:rgba(111,168,134,.25);color:#6fa886;box-shadow:0 0 12px rgba(111,168,134,.2)}
+.grade-B{background:rgba(142,181,163,.2);color:var(--d1)}
+.grade-C{background:rgba(196,176,122,.2);color:var(--yellow)}
 .grade-D{background:rgba(196,160,138,.18);color:var(--d3)}
-.grade-F{background:rgba(196,122,122,.18);color:var(--red)}
-.mm-match-card{padding:12px 14px;border:1px solid var(--cream-border);border-radius:10px;display:flex;align-items:center;gap:12px;margin-bottom:7px;background:var(--cream-faint);transition:background .12s}
+.grade-F{background:rgba(196,122,122,.12);color:rgba(196,122,122,.7)}
+.mm-match-card{padding:12px 14px;border:1px solid var(--cream-border);border-radius:10px;display:flex;align-items:flex-start;gap:12px;margin-bottom:7px;background:var(--cream-faint);transition:background .12s,border-color .12s}
 .mm-match-card:hover{background:rgba(241,238,230,.08)}
+.mm-match-card.grade-card-A{border-left:2px solid rgba(111,168,134,.5)}
+.mm-match-card.grade-card-B{border-left:2px solid rgba(142,181,163,.35)}
+.mm-match-card.grade-card-C{border-left:2px solid rgba(196,176,122,.3)}
 .mm-match-info{flex:1;min-width:0}
 .mm-match-name{font-size:.8rem;font-weight:600;margin-bottom:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.mm-match-sub{font-size:.67rem;color:var(--cream-dim)}
+.mm-match-sub{font-size:.67rem;color:var(--cream-dim);line-height:1.5}
 .mm-match-bar{height:3px;border-radius:999px;background:rgba(241,238,230,.07);margin-top:5px;overflow:hidden}
 .mm-match-fill{height:100%;border-radius:999px;transition:width .5s var(--spring)}
-.mm-match-right{display:flex;flex-direction:column;align-items:flex-end;gap:5px;flex-shrink:0}
-.mm-pct{font-size:.7rem;font-weight:700}
+.mm-match-right{display:flex;flex-direction:column;align-items:flex-end;gap:5px;flex-shrink:0;min-width:70px}
+.mm-pct{font-size:.78rem;font-weight:800}
+.mm-tier-label{font-size:.58rem;font-weight:600;letter-spacing:.04em;opacity:.7}
+/* Score breakdown mini bars */
+.mm-breakdown{display:flex;gap:2px;margin-top:6px;align-items:flex-end;height:16px}
+.mm-breakdown-bar{width:8px;border-radius:2px 2px 0 0;transition:height .3s var(--spring);flex-shrink:0}
+.mm-breakdown-label{font-size:.54rem;color:var(--cream-dim);margin-top:3px;display:flex;gap:2px}
+.mm-breakdown-wrap{margin-top:4px}
+/* Financial budget chip in player header */
+.mm-budget-chip{font-size:.67rem;padding:3px 10px;border-radius:999px;background:rgba(160,155,196,.12);border:1px solid rgba(160,155,196,.3);color:var(--d2)}
 .api-key-input{padding:8px 13px;background:var(--cream-faint);border:1px solid var(--cream-border);border-radius:8px;color:var(--cream);font-size:.72rem;outline:none;width:210px;transition:border-color .2s}
 .api-key-input:focus{border-color:rgba(241,238,230,.3)}
 .api-key-input::placeholder{color:rgba(241,238,230,.22)}
@@ -320,31 +333,39 @@ tbody td{padding:12px 12px;font-size:.78rem;color:var(--cream);vertical-align:mi
 
 /* ===== MAP TAB ===== */
 #map-layout{display:flex;flex:1;min-height:0;overflow:hidden}
-#map-svg-wrap{flex:1;min-width:0;padding:20px 16px 20px 28px;overflow:hidden;display:flex;align-items:center;justify-content:center}
-#map-svg-wrap svg{width:100%;height:100%;max-height:calc(100vh - 140px)}
-#map-school-panel{width:280px;flex-shrink:0;border-left:1px solid var(--cream-border);display:flex;flex-direction:column;overflow:hidden}
+#map-svg-wrap{flex:1;min-width:0;padding:16px 12px 16px 20px;overflow:hidden;display:flex;align-items:center;justify-content:center;background:var(--black)}
+#map-svg-wrap svg{width:100%;height:100%;max-height:calc(100vh - 130px);display:block}
+#map-loading{color:var(--cream-dim);font-size:.78rem;text-align:center;padding:60px}
+#map-school-panel{width:270px;flex-shrink:0;border-left:1px solid var(--cream-border);display:flex;flex-direction:column;overflow:hidden;background:var(--black-light)}
 #map-panel-header{padding:14px 16px 10px;border-bottom:1px solid var(--cream-border)}
 #map-panel-state{font-size:.85rem;font-weight:700;color:var(--cream);letter-spacing:-.01em}
 #map-panel-count{font-size:.67rem;color:var(--cream-dim);margin-top:2px}
-#map-panel-div-tabs{display:flex;gap:4px;padding:8px 12px;border-bottom:1px solid var(--cream-border)}
-.map-dtab{flex:1;padding:5px 6px;background:none;border:1px solid var(--cream-border);border-radius:6px;color:var(--cream-dim);font-size:.67rem;font-weight:600;cursor:pointer;transition:all .12s}
+#map-panel-div-tabs{display:flex;gap:4px;padding:8px 10px;border-bottom:1px solid var(--cream-border)}
+.map-dtab{flex:1;padding:5px 4px;background:none;border:1px solid var(--cream-border);border-radius:6px;color:var(--cream-dim);font-size:.65rem;font-weight:600;cursor:pointer;transition:all .12s}
 .map-dtab:hover{background:rgba(241,238,230,.07);color:var(--cream)}
 .map-dtab.active{background:rgba(241,238,230,.1);color:var(--cream);border-color:rgba(241,238,230,.3)}
-#map-school-list{flex:1;overflow-y:auto;padding:8px 0}
+#map-school-list{flex:1;overflow-y:auto;padding:6px 0}
 #map-school-list::-webkit-scrollbar{width:4px}
 #map-school-list::-webkit-scrollbar-thumb{background:rgba(241,238,230,.15);border-radius:999px}
-.map-school-item{padding:9px 16px;cursor:pointer;border-bottom:1px solid rgba(241,238,230,.04);transition:background .1s}
+.map-school-item{padding:8px 14px;cursor:pointer;border-bottom:1px solid rgba(241,238,230,.04);transition:background .1s}
 .map-school-item:hover{background:rgba(241,238,230,.05)}
-.map-school-name{font-size:.75rem;font-weight:600;color:var(--cream);line-height:1.3}
-.map-school-meta{font-size:.65rem;color:var(--cream-dim);margin-top:2px;display:flex;gap:8px;align-items:center}
-.map-div-dot{width:7px;height:7px;border-radius:50%;display:inline-block;flex-shrink:0}
-/* SVG state styles */
-.us-state{fill:rgba(241,238,230,.06);stroke:rgba(241,238,230,.15);stroke-width:0.5;cursor:pointer;transition:fill .15s}
-.us-state:hover{fill:rgba(241,238,230,.14)}
-.us-state.has-schools{fill:rgba(142,181,163,.12);stroke:rgba(142,181,163,.3)}
-.us-state.has-schools:hover{fill:rgba(142,181,163,.22)}
-.us-state.selected{fill:rgba(142,181,163,.28);stroke:rgba(142,181,163,.7);stroke-width:1.2}
-.map-empty{padding:24px 16px;text-align:center;font-size:.73rem;color:var(--cream-dim)}
+.map-school-name{font-size:.74rem;font-weight:600;color:var(--cream);line-height:1.3}
+.map-school-meta{font-size:.64rem;color:var(--cream-dim);margin-top:2px;display:flex;gap:7px;align-items:center}
+.map-div-dot{width:6px;height:6px;border-radius:50%;display:inline-block;flex-shrink:0}
+/* SVG state paths */
+.us-state{stroke:rgba(241,238,230,.18);stroke-width:0.6;cursor:pointer;transition:fill .18s,stroke .18s}
+.us-state.empty{fill:rgba(241,238,230,.05)}
+.us-state.empty:hover{fill:rgba(241,238,230,.12)}
+.us-state.has-schools{fill:#3a5c50}
+.us-state.has-schools:hover{fill:#4a7062}
+.us-state.selected{fill:#8EB5A3;stroke:#8EB5A3;stroke-width:1.2}
+.us-state.selected:hover{fill:#9fc5b4}
+.us-nation{fill:none;stroke:rgba(241,238,230,.25);stroke-width:1}
+.us-state-border{fill:none;stroke:rgba(241,238,230,.18);stroke-width:0.6}
+.map-empty{padding:32px 16px;text-align:center;font-size:.73rem;color:var(--cream-dim);line-height:1.7}
+.map-legend{display:flex;gap:12px;align-items:center;padding:8px 20px;border-bottom:1px solid var(--cream-border);flex-wrap:wrap}
+.map-legend-item{display:flex;align-items:center;gap:5px;font-size:.63rem;color:var(--cream-dim)}
+.map-legend-swatch{width:10px;height:10px;border-radius:2px;flex-shrink:0}
 .sync-note{font-size:.65rem;color:var(--cream-dim);margin-top:4px}
 
 /* ===== TOAST ===== */
@@ -731,6 +752,7 @@ tbody td{padding:12px 12px;font-size:.78rem;color:var(--cream);vertical-align:mi
             <button class="btn-sync" onclick="syncLiveSchoolData()">↻ sync live data</button>
           </div>
           <div class="sync-note">syncs avg sat + admission rates into your benchmarks from the us dept of education</div>
+          <button onclick="showPlayerColsMigration()" style="background:none;border:none;color:var(--d2);font-size:.65rem;cursor:pointer;text-align:right;padding:0;text-decoration:underline;opacity:.7">⚙ add budget/preference columns to db</button>
         </div>
       </div>
       <div class="matchmaker-layout">
@@ -776,8 +798,19 @@ tbody td{padding:12px 12px;font-size:.78rem;color:var(--cream);vertical-align:mi
           <button class="btn-sync" onclick="clearMapState()" id="map-clear-btn" style="display:none;font-size:.72rem">✕ clear state</button>
         </div>
       </div>
+      <div class="map-legend">
+        <span style="font-size:.63rem;color:var(--cream-dim);font-weight:600;margin-right:4px">legend:</span>
+        <div class="map-legend-item"><div class="map-legend-swatch" style="background:#3a5c50"></div>has schools</div>
+        <div class="map-legend-item"><div class="map-legend-swatch" style="background:#8EB5A3"></div>selected</div>
+        <div class="map-legend-item"><div class="map-legend-swatch" style="background:rgba(241,238,230,.05);border:1px solid rgba(241,238,230,.15)"></div>no schools</div>
+        <div style="margin-left:auto;display:flex;gap:10px">
+          <div class="map-legend-item"><div class="map-div-dot" style="background:#8EB5A3"></div>D1</div>
+          <div class="map-legend-item"><div class="map-div-dot" style="background:#A09BC4"></div>D2</div>
+          <div class="map-legend-item"><div class="map-div-dot" style="background:#C4A08A"></div>D3</div>
+        </div>
+      </div>
       <div id="map-layout">
-        <div id="map-svg-wrap"></div>
+        <div id="map-svg-wrap"><div id="map-loading">loading map…</div></div>
         <div id="map-school-panel">
           <div id="map-panel-header">
             <div id="map-panel-state">select a state</div>
@@ -975,62 +1008,7 @@ async function doLogout() {
   document.getElementById('login-page').classList.remove('hidden');
 }
 
-// ===== US MAP =====
-// Compact US state SVG paths (Albers USA projection, 960×600 viewBox)
-const US_STATES = {
-  AL:{d:"M 520 340 L 530 340 L 535 380 L 530 400 L 515 400 L 510 370 Z",cx:522,cy:365},
-  AK:{d:"M 80 440 L 120 440 L 145 460 L 135 490 L 100 495 L 75 475 Z",cx:110,cy:467},
-  AZ:{d:"M 155 290 L 200 295 L 200 370 L 155 375 L 140 345 Z",cx:172,cy:332},
-  AR:{d:"M 480 315 L 520 315 L 520 345 L 480 345 Z",cx:500,cy:330},
-  CA:{d:"M 100 200 L 150 195 L 165 255 L 155 295 L 110 300 L 95 265 Z",cx:130,cy:248},
-  CO:{d:"M 260 255 L 320 255 L 320 295 L 260 295 Z",cx:290,cy:275},
-  CT:{d:"M 695 195 L 715 193 L 718 210 L 698 212 Z",cx:706,cy:202},
-  DE:{d:"M 680 218 L 692 216 L 695 232 L 682 233 Z",cx:686,cy:224},
-  FL:{d:"M 530 400 L 580 398 L 600 420 L 590 460 L 560 470 L 535 455 L 525 425 Z",cx:560,cy:432},
-  GA:{d:"M 530 345 L 570 343 L 575 385 L 560 400 L 530 400 L 520 375 Z",cx:549,cy:372},
-  HI:{d:"M 215 480 L 260 478 L 265 495 L 220 497 Z",cx:240,cy:487},
-  ID:{d:"M 175 160 L 215 155 L 220 210 L 195 235 L 175 230 Z",cx:197,cy:195},
-  IL:{d:"M 490 225 L 515 223 L 518 290 L 492 292 Z",cx:504,cy:257},
-  IN:{d:"M 520 220 L 545 218 L 548 278 L 522 280 Z",cx:534,cy:249},
-  IA:{d:"M 440 210 L 495 208 L 496 238 L 441 240 Z",cx:468,cy:224},
-  KS:{d:"M 365 275 L 435 273 L 436 305 L 366 307 Z",cx:400,cy:290},
-  KY:{d:"M 520 280 L 570 278 L 575 305 L 522 307 Z",cx:547,cy:292},
-  LA:{d:"M 460 370 L 510 368 L 515 400 L 490 408 L 463 398 Z",cx:488,cy:387},
-  ME:{d:"M 720 125 L 748 120 L 752 158 L 722 162 Z",cx:736,cy:140},
-  MD:{d:"M 645 228 L 690 225 L 692 242 L 647 245 Z",cx:668,cy:236},
-  MA:{d:"M 700 178 L 740 175 L 743 193 L 702 195 Z",cx:721,cy:186},
-  MI:{d:"M 525 175 L 560 172 L 565 210 L 527 213 Z",cx:545,cy:191},
-  MN:{d:"M 430 155 L 475 152 L 478 210 L 432 212 Z",cx:454,cy:181},
-  MS:{d:"M 490 340 L 520 338 L 522 400 L 492 402 Z",cx:506,cy:370},
-  MO:{d:"M 440 268 L 500 265 L 502 315 L 442 318 Z",cx:470,cy:291},
-  MT:{d:"M 195 135 L 290 130 L 292 180 L 197 183 Z",cx:243,cy:156},
-  NE:{d:"M 355 235 L 430 233 L 431 265 L 356 268 Z",cx:393,cy:250},
-  NV:{d:"M 125 210 L 170 205 L 175 275 L 130 280 Z",cx:150,cy:243},
-  NH:{d:"M 708 158 L 725 155 L 728 188 L 710 190 Z",cx:718,cy:172},
-  NJ:{d:"M 675 200 L 692 198 L 695 225 L 677 227 Z",cx:684,cy:212},
-  NM:{d:"M 220 295 L 270 293 L 272 355 L 222 358 Z",cx:246,cy:325},
-  NY:{d:"M 635 168 L 700 163 L 703 205 L 637 208 Z",cx:668,cy:185},
-  NC:{d:"M 570 300 L 645 295 L 648 322 L 572 325 Z",cx:609,cy:310},
-  ND:{d:"M 355 152 L 430 149 L 431 182 L 356 185 Z",cx:393,cy:167},
-  OH:{d:"M 548 215 L 585 213 L 587 265 L 550 268 Z",cx:567,cy:240},
-  OK:{d:"M 360 305 L 455 302 L 458 335 L 362 338 Z",cx:408,cy:320},
-  OR:{d:"M 105 165 L 170 160 L 172 210 L 107 213 Z",cx:138,cy:187},
-  PA:{d:"M 598 195 L 660 192 L 662 225 L 600 228 Z",cx:630,cy:210},
-  RI:{d:"M 722 192 L 733 191 L 734 203 L 723 204 Z",cx:727,cy:197},
-  SC:{d:"M 572 323 L 615 320 L 618 350 L 574 352 Z",cx:595,cy:336},
-  SD:{d:"M 355 183 L 430 180 L 431 215 L 356 218 Z",cx:393,cy:198},
-  TN:{d:"M 500 308 L 572 305 L 574 328 L 502 331 Z",cx:537,cy:318},
-  TX:{d:"M 310 330 L 440 325 L 445 410 L 380 430 L 315 400 Z",cx:375,cy:378},
-  UT:{d:"M 195 240 L 240 237 L 242 295 L 197 298 Z",cx:218,cy:267},
-  VT:{d:"M 695 152 L 710 150 L 712 180 L 697 182 Z",cx:703,cy:165},
-  VA:{d:"M 590 265 L 655 260 L 658 292 L 592 295 Z",cx:623,cy:278},
-  WA:{d:"M 110 130 L 175 125 L 177 162 L 112 165 Z",cx:143,cy:145},
-  WV:{d:"M 575 245 L 620 242 L 622 278 L 577 281 Z",cx:598,cy:261},
-  WI:{d:"M 470 165 L 510 162 L 512 213 L 472 216 Z",cx:491,cy:188},
-  WY:{d:"M 240 195 L 320 192 L 322 245 L 242 248 Z",cx:280,cy:220},
-  DC:{d:"M 665 245 L 672 244 L 673 251 L 666 252 Z",cx:669,cy:248},
-};
-
+// ===== US MAP (D3 + TopoJSON) =====
 const STATE_NAMES = {
   AL:'Alabama',AK:'Alaska',AZ:'Arizona',AR:'Arkansas',CA:'California',CO:'Colorado',CT:'Connecticut',
   DE:'Delaware',FL:'Florida',GA:'Georgia',HI:'Hawaii',ID:'Idaho',IL:'Illinois',IN:'Indiana',IA:'Iowa',
@@ -1042,86 +1020,200 @@ const STATE_NAMES = {
   WI:'Wisconsin',WY:'Wyoming',DC:'Washington DC'
 };
 
+const FIPS_TO_ABBR = {
+  '01':'AL','02':'AK','04':'AZ','05':'AR','06':'CA','08':'CO','09':'CT','10':'DE','11':'DC',
+  '12':'FL','13':'GA','15':'HI','16':'ID','17':'IL','18':'IN','19':'IA','20':'KS','21':'KY',
+  '22':'LA','23':'ME','24':'MD','25':'MA','26':'MI','27':'MN','28':'MS','29':'MO','30':'MT',
+  '31':'NE','32':'NV','33':'NH','34':'NJ','35':'NM','36':'NY','37':'NC','38':'ND','39':'OH',
+  '40':'OK','41':'OR','42':'PA','44':'RI','45':'SC','46':'SD','47':'TN','48':'TX','49':'UT',
+  '50':'VT','51':'VA','53':'WA','54':'WV','55':'WI','56':'WY'
+};
+
+// Small states that get external callout labels (too tiny for interior text)
+const SMALL_STATES = new Set(['CT','DE','DC','MA','MD','NH','NJ','RI','VT']);
+
 let mapSelectedState = null;
 let mapPanelDiv = 'all';
+let _usTopoJson = null; // cached TopoJSON data
 
-function buildUSMap() {
+async function buildUSMap() {
+  const wrap = document.getElementById('map-svg-wrap');
+  if (!wrap) return;
+
+  // Load TopoJSON once and cache
+  if (!_usTopoJson) {
+    wrap.innerHTML = '<div id="map-loading">loading map…</div>';
+    try {
+      _usTopoJson = await d3.json('https://cdn.jsdelivr.net/npm/us-atlas@3/states-albers-10m.json');
+    } catch(e) {
+      wrap.innerHTML = '<div id="map-loading" style="color:#c8736a">failed to load map — check connection</div>';
+      return;
+    }
+  }
+
   const divFilter = document.getElementById('map-div-filter')?.value || '';
+
+  // Build school counts by state
   const schoolsByState = {};
   state.schools.forEach(s => {
     const st = extractState(s.location || s.state || '');
     if (!st) return;
-    if (divFilter && s.division !== divFilter) return;
     if (!schoolsByState[st]) schoolsByState[st] = [];
     schoolsByState[st].push(s);
   });
 
-  const svgNS = 'http://www.w3.org/2000/svg';
-  const svg = document.createElementNS(svgNS, 'svg');
-  svg.setAttribute('viewBox', '60 110 830 420');
-  svg.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
-  svg.style.cssText = 'width:100%;height:100%;display:block';
+  const countForState = abbr => {
+    const list = schoolsByState[abbr] || [];
+    return divFilter ? list.filter(s => s.division === divFilter).length : list.length;
+  };
 
-  Object.entries(US_STATES).forEach(([abbr, info]) => {
-    const count = schoolsByState[abbr]?.length || 0;
-    const path = document.createElementNS(svgNS, 'path');
-    path.setAttribute('d', info.d);
-    path.setAttribute('class', `us-state${count > 0 ? ' has-schools' : ''}${mapSelectedState === abbr ? ' selected' : ''}`);
-    path.dataset.state = abbr;
+  const features = topojson.feature(_usTopoJson, _usTopoJson.objects.states).features;
+  const nation   = topojson.feature(_usTopoJson, _usTopoJson.objects.nation);
+  const borders  = topojson.mesh(_usTopoJson, _usTopoJson.objects.states, (a, b) => a !== b);
 
-    // Tooltip title
-    const title = document.createElementNS(svgNS, 'title');
-    title.textContent = `${STATE_NAMES[abbr]} — ${count} school${count !== 1 ? 's' : ''}`;
-    path.appendChild(title);
+  // Standard Albers USA 975×610 viewBox
+  const projection = d3.geoAlbersUsa().scale(1300).translate([487.5, 305]);
+  const pathGen = d3.geoPath().projection(projection);
 
-    path.addEventListener('click', () => selectMapState(abbr));
-    svg.appendChild(path);
+  const svgEl = d3.create('svg')
+    .attr('viewBox', '0 0 975 610')
+    .style('width', '100%')
+    .style('height', '100%')
+    .style('display', 'block');
 
-    // State label
-    if (count > 0) {
-      const text = document.createElementNS(svgNS, 'text');
-      text.setAttribute('x', info.cx);
-      text.setAttribute('y', info.cy + 4);
-      text.setAttribute('text-anchor', 'middle');
-      text.style.cssText = 'font-size:6px;fill:rgba(241,238,230,.7);pointer-events:none;font-family:Jost,sans-serif;font-weight:600';
-      text.textContent = count;
-      svg.appendChild(text);
-    }
+  // State fills
+  const stateG = svgEl.append('g');
+  features.forEach(feature => {
+    const fips = String(feature.id).padStart(2, '0');
+    const abbr = FIPS_TO_ABBR[fips];
+    if (!abbr) return;
 
-    // Small abbr label
-    const label = document.createElementNS(svgNS, 'text');
-    label.setAttribute('x', info.cx);
-    label.setAttribute('y', info.cy - 3);
-    label.setAttribute('text-anchor', 'middle');
-    label.style.cssText = `font-size:5px;fill:rgba(241,238,230,${count > 0 ? '.55' : '.25'});pointer-events:none;font-family:Jost,sans-serif`;
-    label.textContent = abbr;
-    svg.appendChild(label);
+    const count = countForState(abbr);
+    const isSelected = mapSelectedState === abbr;
+
+    let cls = 'us-state';
+    if (isSelected) cls += ' selected';
+    else if (count > 0) cls += ' has-schools';
+    else cls += ' empty';
+
+    stateG.append('path')
+      .attr('d', pathGen(feature))
+      .attr('class', cls)
+      .attr('data-abbr', abbr)
+      .on('click', () => selectMapState(abbr))
+      .append('title')
+        .text(`${STATE_NAMES[abbr] || abbr} — ${count} school${count !== 1 ? 's' : ''}`);
   });
 
-  const wrap = document.getElementById('map-svg-wrap');
-  wrap.innerHTML = '';
-  wrap.appendChild(svg);
+  // State border mesh
+  svgEl.append('path')
+    .datum(borders)
+    .attr('class', 'us-state-border')
+    .attr('d', pathGen);
 
-  // Update subtitle
-  const total = state.schools.filter(s => divFilter ? s.division === divFilter : true).length;
-  document.getElementById('map-subtitle').textContent = `${total} schools across ${Object.keys(schoolsByState).length} states — click a state`;
+  // Labels: abbr + count at centroid, with callouts for small NE states
+  const labelG = svgEl.append('g').style('pointer-events', 'none');
+
+  // Callout leader-line offset positions for tiny states (x, y of label box)
+  const CALLOUT_POS = {
+    CT: [880, 155], DE: [895, 225], DC: [900, 275], MA: [900, 115],
+    MD: [900, 245], NH: [880, 75],  NJ: [905, 195], RI: [920, 175], VT: [860, 75]
+  };
+
+  features.forEach(feature => {
+    const fips = String(feature.id).padStart(2, '0');
+    const abbr = FIPS_TO_ABBR[fips];
+    if (!abbr) return;
+
+    const count = countForState(abbr);
+    const centroid = pathGen.centroid(feature);
+    if (!centroid || isNaN(centroid[0])) return;
+
+    const isSelected = mapSelectedState === abbr;
+    const hasSchools = count > 0;
+    const textFill = isSelected ? '#2B2926' : hasSchools ? 'rgba(241,238,230,.9)' : 'rgba(241,238,230,.35)';
+    const countFill = isSelected ? '#2B2926' : '#8EB5A3';
+
+    if (SMALL_STATES.has(abbr)) {
+      // Callout: leader line + label box on right side
+      const [bx, by] = CALLOUT_POS[abbr] || [centroid[0] + 60, centroid[1]];
+      // Leader line
+      labelG.append('line')
+        .attr('x1', centroid[0]).attr('y1', centroid[1])
+        .attr('x2', bx - 2).attr('y2', by + 6)
+        .attr('stroke', 'rgba(241,238,230,.25)').attr('stroke-width', 0.7);
+      // Box
+      const boxW = count > 0 ? 32 : 24;
+      labelG.append('rect')
+        .attr('x', bx).attr('y', by - 1)
+        .attr('width', boxW).attr('height', 14)
+        .attr('rx', 3)
+        .attr('fill', isSelected ? '#8EB5A3' : hasSchools ? '#3a5c50' : 'rgba(241,238,230,.08)')
+        .attr('stroke', isSelected ? '#8EB5A3' : hasSchools ? 'rgba(142,181,163,.4)' : 'rgba(241,238,230,.15)')
+        .attr('stroke-width', 0.6);
+      labelG.append('text')
+        .attr('x', bx + (count > 0 ? 10 : 12)).attr('y', by + 9)
+        .attr('text-anchor', 'middle')
+        .attr('font-size', 6.5).attr('font-family', 'Jost,sans-serif').attr('font-weight', 700)
+        .attr('fill', textFill)
+        .text(abbr);
+      if (count > 0) {
+        labelG.append('text')
+          .attr('x', bx + 24).attr('y', by + 9)
+          .attr('text-anchor', 'middle')
+          .attr('font-size', 6).attr('font-family', 'Jost,sans-serif').attr('font-weight', 700)
+          .attr('fill', countFill)
+          .text(count);
+      }
+    } else {
+      // Interior label: abbr + count stacked
+      labelG.append('text')
+        .attr('x', centroid[0]).attr('y', centroid[1] + (count > 0 ? -3 : 3))
+        .attr('text-anchor', 'middle')
+        .attr('font-size', abbr === 'AK' ? 9 : 7.5)
+        .attr('font-family', 'Jost,sans-serif').attr('font-weight', 700)
+        .attr('fill', textFill)
+        .text(abbr);
+      if (count > 0) {
+        labelG.append('text')
+          .attr('x', centroid[0]).attr('y', centroid[1] + 9)
+          .attr('text-anchor', 'middle')
+          .attr('font-size', 6.5).attr('font-family', 'Jost,sans-serif').attr('font-weight', 700)
+          .attr('fill', countFill)
+          .text(count);
+      }
+    }
+  });
+
+  wrap.innerHTML = '';
+  wrap.appendChild(svgEl.node());
+
+  // Subtitle
+  const statesWithSchools = Object.keys(schoolsByState).filter(k => countForState(k) > 0).length;
+  const total = state.schools.filter(s => !divFilter || s.division === divFilter).length;
+  const sub = document.getElementById('map-subtitle');
+  if (sub) sub.textContent = `${total} schools across ${statesWithSchools} states — click a state`;
 }
 
 function selectMapState(abbr) {
   mapSelectedState = abbr;
-  buildUSMap(); // re-render so selected state highlights
+  buildUSMap();
   renderMapPanel();
-  document.getElementById('map-clear-btn').style.display = '';
+  const btn = document.getElementById('map-clear-btn');
+  if (btn) btn.style.display = '';
 }
 
 function clearMapState() {
   mapSelectedState = null;
   buildUSMap();
-  document.getElementById('map-panel-state').textContent = 'select a state';
-  document.getElementById('map-panel-count').textContent = '';
-  document.getElementById('map-school-list').innerHTML = '<div class="map-empty">click a state on the map</div>';
-  document.getElementById('map-clear-btn').style.display = 'none';
-  // Also clear school tab filter
+  const panelState = document.getElementById('map-panel-state');
+  const panelCount = document.getElementById('map-panel-count');
+  const list = document.getElementById('map-school-list');
+  if (panelState) panelState.textContent = 'select a state';
+  if (panelCount) panelCount.textContent = '';
+  if (list) list.innerHTML = '<div class="map-empty">click any state<br>to see its schools</div>';
+  const btn = document.getElementById('map-clear-btn');
+  if (btn) btn.style.display = 'none';
   const sfState = document.getElementById('sf-state');
   if (sfState) { sfState.value = ''; renderSchools(); }
 }
@@ -1133,13 +1225,14 @@ function setMapPanelDiv(div) {
 }
 
 function renderMapDots() {
-  buildUSMap(); // re-render map with division filter applied
+  buildUSMap();
   if (mapSelectedState) renderMapPanel();
 }
 
 function renderMapPanel() {
   if (!mapSelectedState) return;
   const divFilter = document.getElementById('map-div-filter')?.value || '';
+  const divColor = d => d === 'D1' ? '#8EB5A3' : d === 'D2' ? '#A09BC4' : '#C4A08A';
 
   let schools = state.schools.filter(s => {
     const st = extractState(s.location || s.state || '');
@@ -1147,20 +1240,26 @@ function renderMapPanel() {
     if (divFilter && s.division !== divFilter) return false;
     if (mapPanelDiv !== 'all' && s.division !== mapPanelDiv) return false;
     return true;
+  }).sort((a, b) => {
+    const order = { D1: 0, D2: 1, D3: 2 };
+    return (order[a.division] ?? 3) - (order[b.division] ?? 3);
   });
 
   const stateName = STATE_NAMES[mapSelectedState] || mapSelectedState;
-  document.getElementById('map-panel-state').textContent = stateName;
-  document.getElementById('map-panel-count').textContent = `${schools.length} school${schools.length !== 1 ? 's' : ''}`;
+  const panelState = document.getElementById('map-panel-state');
+  const panelCount = document.getElementById('map-panel-count');
+  if (panelState) panelState.textContent = stateName;
+  if (panelCount) panelCount.textContent = `${schools.length} school${schools.length !== 1 ? 's' : ''}`;
 
-  // Also filter the schools tab
+  // Sync schools tab state filter
   const sfState = document.getElementById('sf-state');
   if (sfState) { sfState.value = mapSelectedState; renderSchools(); }
 
-  const divColor = d => d === 'D1' ? 'var(--d1)' : d === 'D2' ? 'var(--d2)' : 'var(--d3)';
   const list = document.getElementById('map-school-list');
+  if (!list) return;
+
   if (!schools.length) {
-    list.innerHTML = '<div class="map-empty">no schools found</div>';
+    list.innerHTML = '<div class="map-empty">no schools found<br>in this state</div>';
     return;
   }
 
@@ -1169,8 +1268,8 @@ function renderMapPanel() {
       <div class="map-school-name">${s.name}</div>
       <div class="map-school-meta">
         <span class="map-div-dot" style="background:${divColor(s.division)}"></span>
-        <span style="color:${divColor(s.division)};font-weight:700">${s.division||'—'}</span>
-        <span>${s.conference||'—'}</span>
+        <span style="color:${divColor(s.division)};font-weight:700">${s.division || '—'}</span>
+        <span>${s.conference || '—'}</span>
       </div>
     </div>`).join('');
 }
@@ -1708,6 +1807,28 @@ async function confirmStatsCSVImport() {
   _csvParsed = null;
 }
 
+function showPlayerColsMigration() {
+  const sql = `-- Run once in Supabase SQL Editor:
+ALTER TABLE players ADD COLUMN IF NOT EXISTS budget_min integer;
+ALTER TABLE players ADD COLUMN IF NOT EXISTS budget_max integer;
+ALTER TABLE players ADD COLUMN IF NOT EXISTS preferred_states text;
+ALTER TABLE players ADD COLUMN IF NOT EXISTS preferred_division text;
+ALTER TABLE players ADD COLUMN IF NOT EXISTS career_goals text;`;
+  const overlay = document.createElement('div');
+  overlay.style.cssText = `position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:9999;display:flex;align-items:center;justify-content:center`;
+  overlay.innerHTML = `
+    <div style="background:#1c1b19;border:1px solid #5c5a50;border-radius:12px;padding:28px;max-width:540px;width:90%;position:relative">
+      <button onclick="this.closest('div[style]').remove()" style="position:absolute;top:12px;right:16px;background:none;border:none;color:#c8c6bc;font-size:1.2rem;cursor:pointer">✕</button>
+      <h3 style="color:#f0ede3;margin:0 0 8px;font-size:1rem">Player Profile — New Columns</h3>
+      <p style="color:#a8a69a;font-size:.83rem;margin:0 0 14px;line-height:1.6">
+        Run this once in <strong style="color:#f0ede3">Supabase → SQL Editor</strong> to enable budget, preferred states, preferred division and career goals on player profiles.
+      </p>
+      <textarea onclick="this.select()" readonly style="width:100%;height:120px;background:#111;border:1px solid #3a3830;color:#7ec8a0;font-family:monospace;font-size:.78rem;padding:10px;border-radius:6px;resize:none;box-sizing:border-box">${sql}</textarea>
+      <button onclick="navigator.clipboard.writeText(this.previousElementSibling.value);this.textContent='✓ copied!';setTimeout(()=>this.textContent='copy SQL',1500)" style="margin-top:10px;padding:7px 18px;background:#3a6b50;border:none;color:#fff;border-radius:6px;cursor:pointer;font-size:.82rem">copy SQL</button>
+    </div>`;
+  document.body.appendChild(overlay);
+}
+
 function showStatsMigrationsModal() {
   const sql = `-- Run this in Supabase SQL Editor (once):
 ALTER TABLE team_stats ADD COLUMN IF NOT EXISTS goals_for integer;
@@ -1858,53 +1979,106 @@ function selectPlayer(id) {
 }
 
 function gradeFromScore(pct) {
-  if (pct >= 85) return 'A';
-  if (pct >= 70) return 'B';
-  if (pct >= 50) return 'C';
-  if (pct >= 30) return 'D';
+  if (pct >= 82) return 'A';
+  if (pct >= 65) return 'B';
+  if (pct >= 44) return 'C';
+  if (pct >= 24) return 'D';
   return 'F';
+}
+
+function tierLabel(grade) {
+  return { A:'elite fit', B:'strong fit', C:'moderate', D:'reach', F:'unlikely' }[grade] || '';
 }
 
 function scorePlayer(player, school) {
   const bench = state.benchmarks.find(b => b.school_id === school.id);
   const sch   = state.scholarships.find(s => s.school_id === school.id);
   const tierMap = { high:'D1', mid:'D2', low:'D3' };
+  const divOrder = ['D1','D2','D3'];
   let pts = 0, max = 0;
+  const bd = {}; // breakdown: key -> { earned, possible, label }
 
-  // GPA (30pts)
-  max += 30;
-  if (bench?.min_gpa) {
-    if (player.gpa >= bench.min_gpa) pts += 30;
-    else if (player.gpa >= bench.min_gpa - 0.3) pts += 15;
-  } else if (player.gpa) pts += 15; // no benchmark = partial
+  // ── 1. GPA (0–20pts) ──────────────────────────────────────────
+  // Only scored when both player GPA and school benchmark exist
+  if (bench?.min_gpa && player.gpa) {
+    const cap = 20, gap = player.gpa - bench.min_gpa;
+    max += cap;
+    const earned = gap >= 0 ? cap : gap >= -0.25 ? Math.round(cap * 0.5) : 0;
+    pts += earned; bd.gpa = { earned, possible: cap, label: 'gpa' };
+  }
 
-  // SAT (25pts)
-  max += 25;
-  if (bench?.min_sat) {
-    if (player.sat >= bench.min_sat) pts += 25;
-    else if (player.sat >= bench.min_sat - 100) pts += 12;
-  } else if (player.sat) pts += 12;
+  // ── 2. SAT (0–15pts) ──────────────────────────────────────────
+  if (bench?.min_sat && player.sat) {
+    const cap = 15, gap = player.sat - bench.min_sat;
+    max += cap;
+    const earned = gap >= 0 ? cap : gap >= -80 ? Math.round(cap * 0.5) : 0;
+    pts += earned; bd.sat = { earned, possible: cap, label: 'sat' };
+  }
 
-  // Tier/Division fit (25pts)
-  max += 25;
-  if (player.tier && tierMap[player.tier] === school.division) pts += 25;
-  else if (player.tier && Math.abs(['D1','D2','D3'].indexOf(tierMap[player.tier]) - ['D1','D2','D3'].indexOf(school.division)) === 1) pts += 12;
+  // ── 3. Division / Athletic tier fit (0–20pts) ─────────────────
+  if (player.tier && school.division) {
+    const cap = 20;
+    max += cap;
+    const pIdx = divOrder.indexOf(tierMap[player.tier]);
+    const sIdx = divOrder.indexOf(school.division);
+    const diff = pIdx >= 0 && sIdx >= 0 ? Math.abs(pIdx - sIdx) : 3;
+    const earned = diff === 0 ? cap : diff === 1 ? Math.round(cap * 0.5) : 0;
+    pts += earned; bd.div = { earned, possible: cap, label: 'div fit' };
+  }
 
-  // Scholarship + affordability (15pts)
-  max += 15;
-  if (sch && sch.full_rides_available > 0) pts += 15;
-  else if (sch && sch.partial_available > 0) pts += 8;
-  else if (school.division === 'D3') pts += 10; // D3 all academic aid
-  // Tuition affordability bonus (0-5pts extra signal, not in max)
-  // if tuition is below $30k it's a moderate boost captured in scoring context
+  // ── 4. Preferred division (0–10pts) ───────────────────────────
+  if (player.preferred_division && player.preferred_division !== '' && school.division) {
+    const cap = 10; max += cap;
+    const earned = school.division === player.preferred_division ? cap : 0;
+    pts += earned; bd.prefDiv = { earned, possible: cap, label: 'pref div' };
+  }
 
-  // Not yet in pipeline bonus (5pts)
-  max += 5;
-  const inPipeline = state.pipeline.find(p => p.player_id === player.id && p.school_id === school.id);
-  if (!inPipeline) pts += 5;
+  // ── 5. Financial fit (0–25pts) — KEY NEW FACTOR ───────────────
+  if (player.budget_max && bench?.tuition) {
+    const cap = 25; max += cap;
+    const ratio = bench.tuition / player.budget_max;
+    const earned = ratio <= 1.0 ? cap
+                 : ratio <= 1.1  ? Math.round(cap * 0.6)
+                 : ratio <= 1.25 ? Math.round(cap * 0.3)
+                 : 0;
+    pts += earned; bd.financial = { earned, possible: cap, label: 'budget' };
+  } else if (player.budget_max && !bench?.tuition) {
+    // tuition unknown — neutral, skip from max so it doesn't penalise
+  }
 
+  // ── 6. Location preference (0–15pts) ──────────────────────────
+  if (player.preferred_states && player.preferred_states.trim()) {
+    const prefList = player.preferred_states.split(',').map(s => s.trim().toUpperCase()).filter(Boolean);
+    if (prefList.length) {
+      const cap = 15; max += cap;
+      const schoolState = extractState(school.location || school.state || '');
+      const earned = prefList.includes(schoolState) ? cap : 0;
+      pts += earned; bd.location = { earned, possible: cap, label: 'location' };
+    }
+  }
+
+  // ── 7. Scholarship / aid availability (0–15pts) ───────────────
+  {
+    const cap = 15; max += cap;
+    const earned = sch?.full_rides_available > 0 ? cap
+                 : sch?.partial_available > 0    ? Math.round(cap * 0.55)
+                 : school.division === 'D3'       ? Math.round(cap * 0.65)
+                 : 0;
+    pts += earned; bd.scholarship = { earned, possible: cap, label: 'aid' };
+  }
+
+  // ── 8. Not yet in pipeline — opportunity signal (0–5pts) ──────
+  {
+    const cap = 5; max += cap;
+    const inPipeline = state.pipeline.find(p => p.player_id === player.id && p.school_id === school.id);
+    const earned = inPipeline ? 0 : cap;
+    pts += earned; bd.pipeline = { earned, possible: cap, label: 'new' };
+    var inPipelineRef = !!inPipeline;
+  }
+
+  if (max === 0) return { pts:0, max:1, pct:0, grade:'F', bench, sch, inPipeline:false, bd };
   const pct = Math.round((pts / max) * 100);
-  return { pts, max, pct, grade: gradeFromScore(pct), bench, sch, inPipeline };
+  return { pts, max, pct, grade: gradeFromScore(pct), bench, sch, inPipeline: inPipelineRef, bd };
 }
 
 function renderMatchResults() {
@@ -1915,26 +2089,42 @@ function renderMatchResults() {
   }
   const p = mmSelectedPlayer;
 
-  // score all schools
-  let scored = state.schools.map(school => {
-    const s = scorePlayer(p, school);
-    return { school, ...s };
-  }).sort((a, b) => b.pct - a.pct);
+  // Score all schools
+  let scored = state.schools.map(school => ({ school, ...scorePlayer(p, school) }))
+    .sort((a, b) => b.pct - a.pct);
 
-  // filters
-  if (mmDivFilter) scored = scored.filter(r => r.school.division === mmDivFilter);
-  if (mmConfFilter) scored = scored.filter(r => (r.school.conference||'').toLowerCase().includes(mmConfFilter.toLowerCase()));
+  // Filters
+  if (mmDivFilter)   scored = scored.filter(r => r.school.division === mmDivFilter);
+  if (mmConfFilter)  scored = scored.filter(r => (r.school.conference||'').toLowerCase().includes(mmConfFilter.toLowerCase()));
   if (mmGradeFilter) scored = scored.filter(r => r.grade === mmGradeFilter);
   if (mmStateFilter) scored = scored.filter(r => extractState(r.school.location||'').includes(mmStateFilter.toUpperCase()));
-  if (mmTuitMax) scored = scored.filter(r => !r.bench?.tuition || r.bench.tuition <= parseInt(mmTuitMax));
+  if (mmTuitMax)     scored = scored.filter(r => !r.bench?.tuition || r.bench.tuition <= parseInt(mmTuitMax));
 
-  const top = scored.slice(0, 50);
-  const aCount = scored.filter(r => r.grade === 'A').length;
-  const bCount = scored.filter(r => r.grade === 'B').length;
+  const top = scored.slice(0, 60);
+  const gradeCounts = { A:0, B:0, C:0, D:0, F:0 };
+  scored.forEach(r => gradeCounts[r.grade]++);
 
   const hexBig = buildHexSVG(p, 80);
   const dob = p.date_of_birth ? new Date(p.date_of_birth) : null;
   const age = dob ? Math.floor((Date.now() - dob) / 31557600000) : null;
+
+  const budgetStr = p.budget_max
+    ? `$${p.budget_min ? Number(p.budget_min).toLocaleString()+' – ' : ''}$${Number(p.budget_max).toLocaleString()}/yr`
+    : null;
+
+  // Grade distribution bar
+  const totalScored = scored.length || 1;
+  const gradeBar = ['A','B','C','D','F'].map(g => {
+    const pct = Math.round((gradeCounts[g] / totalScored) * 100);
+    const col = g==='A'?'#6fa886':g==='B'?'var(--d1)':g==='C'?'var(--yellow)':g==='D'?'var(--d3)':'rgba(196,122,122,.5)';
+    return `<div style="display:flex;align-items:center;gap:5px;font-size:.63rem">
+      <span style="color:${col};font-weight:700;width:12px">${g}</span>
+      <div style="flex:1;height:5px;border-radius:999px;background:rgba(241,238,230,.06);overflow:hidden;min-width:60px">
+        <div style="height:100%;width:${pct}%;background:${col};border-radius:999px;transition:width .5s"></div>
+      </div>
+      <span style="color:var(--cream-dim);width:20px;text-align:right">${gradeCounts[g]}</span>
+    </div>`;
+  }).join('');
 
   container.innerHTML = `
     <div class="mm-player-header">
@@ -1948,47 +2138,90 @@ function renderMatchResults() {
           ${p.tier ? `<span class="mm-chip" style="color:${p.tier==='high'?'var(--green)':p.tier==='mid'?'var(--yellow)':'var(--red)'}">${p.tier} tier</span>` : ''}
           ${p.gpa ? `<span class="mm-chip">gpa ${p.gpa}</span>` : ''}
           ${p.sat ? `<span class="mm-chip">sat ${p.sat}</span>` : ''}
+          ${budgetStr ? `<span class="mm-budget-chip">💰 ${budgetStr}</span>` : ''}
+          ${p.preferred_states ? `<span class="mm-chip" style="color:var(--d2)">📍 ${p.preferred_states}</span>` : ''}
+          ${p.preferred_division ? `<span class="mm-chip" style="color:var(--d1)">target: ${p.preferred_division}</span>` : ''}
+          ${p.career_goals ? `<span class="mm-chip" style="color:var(--cream-dim);font-style:italic">${p.career_goals}</span>` : ''}
         </div>
-        <div class="mm-strong-matches"><strong style="color:var(--green)">${aCount} A-grade</strong> matches · <strong style="color:var(--d1)">${bCount} B-grade</strong> matches out of ${state.schools.length} schools</div>
+        <div style="margin-top:8px;display:flex;gap:16px;flex-wrap:wrap;align-items:flex-start">
+          <div style="display:flex;flex-direction:column;gap:3px;min-width:120px">${gradeBar}</div>
+          <div style="font-size:.67rem;color:var(--cream-dim);line-height:1.7">
+            <strong style="color:var(--green)">${gradeCounts.A}</strong> elite ·
+            <strong style="color:var(--d1)">${gradeCounts.B}</strong> strong ·
+            <strong style="color:var(--yellow)">${gradeCounts.C}</strong> moderate<br>
+            <span style="font-size:.62rem">out of ${state.schools.length} schools · scoring on ${top[0]?.max||0} weighted pts</span>
+            ${!p.budget_max ? `<br><span style="color:rgba(196,160,138,.8)">⚠ add budget to unlock financial scoring</span>` : ''}
+          </div>
+        </div>
       </div>
     </div>
     <div class="mm-section-title">filters</div>
     <div class="mm-filters">
-      <select class="filter-input" style="min-width:120px" onchange="mmDivFilter=this.value;renderMatchResults()">
+      <select class="filter-input" style="min-width:110px" onchange="mmDivFilter=this.value;renderMatchResults()">
         <option value="">all divisions</option>
         <option${mmDivFilter==='D1'?' selected':''}>D1</option>
         <option${mmDivFilter==='D2'?' selected':''}>D2</option>
         <option${mmDivFilter==='D3'?' selected':''}>D3</option>
       </select>
-      <input class="filter-input" placeholder="conference..." value="${mmConfFilter}" oninput="mmConfFilter=this.value;renderMatchResults()" style="min-width:120px">
-      <input class="filter-input" placeholder="state (e.g. CA)" value="${mmStateFilter}" oninput="mmStateFilter=this.value;renderMatchResults()" style="max-width:100px">
-      <input class="filter-input" type="number" placeholder="max tuition $" value="${mmTuitMax}" oninput="mmTuitMax=this.value;renderMatchResults()" style="max-width:130px">
-      <select class="filter-input" style="min-width:110px" onchange="mmGradeFilter=this.value;renderMatchResults()">
+      <input class="filter-input" placeholder="conference..." value="${mmConfFilter}" oninput="mmConfFilter=this.value;renderMatchResults()" style="min-width:110px">
+      <input class="filter-input" placeholder="state" value="${mmStateFilter}" oninput="mmStateFilter=this.value;renderMatchResults()" style="max-width:80px">
+      <input class="filter-input" type="number" placeholder="max tuition $" value="${mmTuitMax}" oninput="mmTuitMax=this.value;renderMatchResults()" style="max-width:120px">
+      <select class="filter-input" style="min-width:100px" onchange="mmGradeFilter=this.value;renderMatchResults()">
         <option value="">all grades</option>
         ${['A','B','C','D','F'].map(g=>`<option${mmGradeFilter===g?' selected':''}>${g}</option>`).join('')}
       </select>
-      <span style="font-size:.72rem;color:var(--cream-dim)">${top.length} shown</span>
+      <span style="font-size:.7rem;color:var(--cream-dim)">${top.length} shown</span>
     </div>
     <div class="mm-section-title">match results</div>
-    ${top.length ? top.map((r,i) => {
+    ${top.length ? top.map((r, i) => {
       const dc = r.school.division==='D1'?'var(--d1)':r.school.division==='D2'?'var(--d2)':'var(--d3)';
-      const barColor = r.grade==='A'?'var(--green)':r.grade==='B'?'var(--d1)':r.grade==='C'?'var(--yellow)':r.grade==='D'?'var(--d3)':'var(--red)';
-      const reasons = [];
-      if (r.bench?.min_gpa && p.gpa >= r.bench.min_gpa) reasons.push('✓ gpa');
-      if (r.bench?.min_sat && p.sat >= r.bench.min_sat) reasons.push('✓ sat');
-      if (r.sch?.full_rides_available > 0) reasons.push('✓ full ride');
-      else if (r.sch?.partial_available > 0) reasons.push('✓ partial aid');
-      if (r.inPipeline) reasons.push('⟳ in pipeline');
-      return `<div class="mm-match-card">
-        <div class="grade-badge grade-${r.grade}">${r.grade}</div>
+      const barColor = r.grade==='A'?'#6fa886':r.grade==='B'?'var(--d1)':r.grade==='C'?'var(--yellow)':r.grade==='D'?'var(--d3)':'rgba(196,122,122,.5)';
+      const tLabel = tierLabel(r.grade);
+
+      // Breakdown mini bars — show key dimensions
+      const bdKeys = ['gpa','sat','div','financial','location','scholarship'];
+      const bdColors = { gpa:'var(--d1)', sat:'var(--d1)', div:'var(--green)', financial:'var(--d2)', location:'#C4A08A', scholarship:'var(--yellow)' };
+      const bdLabels = { gpa:'gpa', sat:'sat', div:'div', financial:'$', location:'loc', scholarship:'aid' };
+      const breakdownBars = bdKeys.filter(k => r.bd[k]).map(k => {
+        const { earned, possible, label } = r.bd[k];
+        const fillPct = possible > 0 ? Math.round((earned/possible)*100) : 0;
+        const h = Math.max(3, Math.round((fillPct/100)*14));
+        return `<div style="display:flex;flex-direction:column;align-items:center;gap:1px">
+          <div style="width:7px;height:14px;background:rgba(241,238,230,.06);border-radius:2px;display:flex;align-items:flex-end;overflow:hidden">
+            <div style="width:100%;height:${fillPct}%;background:${bdColors[k]};border-radius:1px;opacity:.9"></div>
+          </div>
+          <span style="font-size:.5rem;color:var(--cream-dim)">${bdLabels[k]}</span>
+        </div>`;
+      }).join('');
+
+      // Reasons line
+      const flags = [];
+      if (r.bd.gpa?.earned === r.bd.gpa?.possible && r.bd.gpa?.possible) flags.push('<span style="color:var(--d1)">✓ gpa</span>');
+      if (r.bd.sat?.earned === r.bd.sat?.possible && r.bd.sat?.possible) flags.push('<span style="color:var(--d1)">✓ sat</span>');
+      if (r.bd.financial?.earned === r.bd.financial?.possible && r.bd.financial?.possible) flags.push('<span style="color:var(--d2)">✓ budget</span>');
+      if (r.bd.location?.earned === r.bd.location?.possible && r.bd.location?.possible) flags.push('<span style="color:#C4A08A">✓ location</span>');
+      if (r.sch?.full_rides_available > 0) flags.push('<span style="color:var(--yellow)">✓ full ride</span>');
+      else if (r.sch?.partial_available > 0) flags.push('<span style="color:var(--yellow)">✓ partial aid</span>');
+      if (r.inPipeline) flags.push('<span style="color:var(--cream-dim)">⟳ in pipeline</span>');
+
+      return `<div class="mm-match-card grade-card-${r.grade}">
+        <div style="display:flex;flex-direction:column;align-items:center;gap:3px">
+          <div class="grade-badge grade-${r.grade}">${r.grade}</div>
+          <span style="font-size:.52rem;color:var(--cream-dim);text-align:center;line-height:1.2">#${i+1}</span>
+        </div>
         <div class="mm-match-info">
           <div class="mm-match-name">${r.school.name}</div>
-          <div class="mm-match-sub"><span style="color:${dc};font-weight:700">${r.school.division}</span> · ${r.school.conference||'—'}${r.school.location ? ` · <span style="color:var(--cream-dim)">${r.school.location}</span>` : ''}${r.bench?.tuition ? ` · <span style="color:var(--yellow)">$${Number(r.bench.tuition).toLocaleString()}/yr</span>` : ''}${r.bench?.adm_rate ? ` · <span style="color:var(--cream-dim)">${r.bench.adm_rate}% adm</span>` : ''}${reasons.length?` · <span style="color:var(--cream-dim)">${reasons.join(' ')}</span>`:''}</div>
-          <div class="mm-match-bar"><div class="mm-match-fill" style="width:${r.pct}%;background:${barColor}"></div></div>
+          <div class="mm-match-sub">
+            <span style="color:${dc};font-weight:700">${r.school.division}</span> · ${r.school.conference||'—'}${r.school.location ? ` · ${r.school.location}` : ''}${r.bench?.tuition ? ` · <span style="color:${p.budget_max && r.bench.tuition <= p.budget_max ? 'var(--green)' : 'var(--yellow)'}">$${Number(r.bench.tuition).toLocaleString()}/yr</span>` : ''}${r.bench?.adm_rate ? ` · ${r.bench.adm_rate}% adm` : ''}
+          </div>
+          ${flags.length ? `<div style="font-size:.63rem;margin-top:3px;display:flex;gap:6px;flex-wrap:wrap">${flags.join('')}</div>` : ''}
+          <div class="mm-match-bar" style="margin-top:5px"><div class="mm-match-fill" style="width:${r.pct}%;background:${barColor}"></div></div>
+          ${breakdownBars ? `<div style="display:flex;gap:3px;margin-top:4px;align-items:flex-end">${breakdownBars}</div>` : ''}
         </div>
         <div class="mm-match-right">
           <span class="mm-pct" style="color:${barColor}">${r.pct}%</span>
-          ${!r.inPipeline ? `<button class="btn-icon" style="font-size:.65rem;padding:3px 8px" onclick="quickAddPipeline('${p.id}','${r.school.id}')">+ pipeline</button>` : `<span style="font-size:.65rem;color:var(--cream-dim)">in pipeline</span>`}
+          <span class="mm-tier-label" style="color:${barColor}">${tLabel}</span>
+          ${!r.inPipeline ? `<button class="btn-icon" style="font-size:.63rem;padding:3px 7px;margin-top:2px" onclick="quickAddPipeline('${p.id}','${r.school.id}')">+ pipeline</button>` : `<span style="font-size:.62rem;color:var(--cream-dim)">in pipeline</span>`}
         </div>
       </div>`;
     }).join('') : '<div class="mm-empty">no matches for current filters.</div>'}`;
@@ -2006,25 +2239,22 @@ async function quickAddPipeline(playerId, schoolId) {
 function buildHexSVG(player, size) {
   const cx = size / 2, cy = size / 2, r = size * 0.42;
   const axes = 6;
-  // Metrics: GPA (0-4), SAT (400-1600), Tier (low=33,mid=66,high=100), Age fitness, Pipeline activity, Academic match rate
-  const gpaScore   = player.gpa  ? Math.min(1, player.gpa / 4) : 0;
-  const satScore   = player.sat  ? Math.min(1, (player.sat - 400) / 1200) : 0;
-  const tierScore  = player.tier === 'high' ? 1 : player.tier === 'mid' ? 0.6 : player.tier === 'low' ? 0.3 : 0;
-  const dob        = player.date_of_birth ? new Date(player.date_of_birth) : null;
-  const age        = dob ? Math.floor((Date.now() - dob) / 31557600000) : null;
-  const ageScore   = age ? Math.max(0, Math.min(1, 1 - Math.abs(age - 19) / 5)) : 0;
-  const pipeCount  = state.pipeline.filter(p => p.player_id === player.id).length;
-  const pipeScore  = Math.min(1, pipeCount / 10);
-  const benchCount = state.benchmarks.length;
-  const matchCount = benchCount ? state.benchmarks.filter(b => {
-    const s = state.schools.find(sc => sc.id === b.school_id);
-    const { pct } = scorePlayer(player, s || {});
-    return pct >= 70;
-  }).length : 0;
-  const matchScore = benchCount ? Math.min(1, matchCount / Math.max(1, benchCount)) : 0;
+  // Axes: GPA, SAT, Athletic Tier, Age Fitness, Budget Reach, Pipeline Activity
+  const gpaScore      = player.gpa  ? Math.min(1, player.gpa / 4) : 0;
+  const satScore      = player.sat  ? Math.min(1, (player.sat - 400) / 1200) : 0;
+  const tierScore     = player.tier === 'high' ? 1 : player.tier === 'mid' ? 0.6 : player.tier === 'low' ? 0.3 : 0;
+  const dob           = player.date_of_birth ? new Date(player.date_of_birth) : null;
+  const age           = dob ? Math.floor((Date.now() - dob) / 31557600000) : null;
+  const ageScore      = age ? Math.max(0, Math.min(1, 1 - Math.abs(age - 19) / 5)) : 0;
+  // Budget reach: how many schools fall within their budget (0 = none set or none affordable, 1 = all affordable)
+  const budgetScore   = player.budget_max
+    ? Math.min(1, state.benchmarks.filter(b => b.tuition && b.tuition <= player.budget_max).length / Math.max(1, state.benchmarks.filter(b => b.tuition).length))
+    : 0;
+  const pipeCount     = state.pipeline.filter(pp => pp.player_id === player.id).length;
+  const pipeScore     = Math.min(1, pipeCount / 10);
 
-  const scores = [gpaScore, satScore, tierScore, ageScore, pipeScore, matchScore];
-  const labels = ['gpa','sat','tier','age','pipe','match'];
+  const scores = [gpaScore, satScore, tierScore, ageScore, budgetScore, pipeScore];
+  const labels = ['gpa','sat','tier','age','$reach','pipe'];
 
   function pt(i, val) {
     const angle = (Math.PI * 2 * i / axes) - Math.PI / 2;
@@ -2806,6 +3036,16 @@ function getModalForm(type, id) {
       <div class="form-field"><label>current club</label><input id="f-club" value="${player?.current_club||''}"></div>
     </div>
     <div class="form-field"><label>highlights url</label><input id="f-url" value="${player?.highlights_url||''}"></div>
+    <div style="margin:12px 0 6px;font-size:.62rem;font-weight:600;letter-spacing:.08em;color:var(--d2);text-transform:uppercase">matchmaker preferences</div>
+    <div class="form-row">
+      <div class="form-field"><label>annual budget min ($/yr after aid)</label><input type="number" id="f-budget-min" step="1000" min="0" placeholder="e.g. 10000" value="${player?.budget_min||''}"></div>
+      <div class="form-field"><label>annual budget max ($/yr after aid)</label><input type="number" id="f-budget-max" step="1000" min="0" placeholder="e.g. 35000" value="${player?.budget_max||''}"></div>
+    </div>
+    <div class="form-row">
+      <div class="form-field"><label>preferred states (e.g. CA, TX, NY)</label><input id="f-pref-states" placeholder="comma-separated" value="${player?.preferred_states||''}"></div>
+      <div class="form-field"><label>preferred division</label><select id="f-pref-div"><option value="">no preference</option><option ${player?.preferred_division==='D1'?'selected':''} value="D1">D1</option><option ${player?.preferred_division==='D2'?'selected':''} value="D2">D2</option><option ${player?.preferred_division==='D3'?'selected':''} value="D3">D3</option></select></div>
+    </div>
+    <div class="form-field"><label>career goals</label><input id="f-career-goals" placeholder="e.g. professional career, coaching, pre-med, business..." value="${player?.career_goals||''}"></div>
     <div class="form-field"><label>notes</label><textarea id="f-notes" rows="2">${player?.notes||''}</textarea></div>`;
 
   if (type === 'pipeline') return `
@@ -2878,7 +3118,7 @@ async function saveModal() {
     payload = { name:g('#f-name'), division:g('#f-div'), conference:g('#f-conf'), location:g('#f-location'), head_coach_email:g('#f-hce'), head_coach_phone:g('#f-hcp'), assistant_coach1_email:g('#f-ac1'), assistant_coach2_email:g('#f-ac2'), website:g('#f-web'), notes:g('#f-notes') };
     if (!payload.name) { toast('school name required', true); return; }
   } else if (type === 'player') {
-    payload = { full_name:g('#f-name'), nationality:g('#f-nat'), position:g('#f-pos')||null, date_of_birth:g('#f-dob')||null, gpa:parseFloat(g('#f-gpa'))||null, sat:parseInt(g('#f-sat'))||null, tier:g('#f-tier')||null, current_club:g('#f-club'), highlights_url:g('#f-url'), notes:g('#f-notes') };
+    payload = { full_name:g('#f-name'), nationality:g('#f-nat'), position:g('#f-pos')||null, date_of_birth:g('#f-dob')||null, gpa:parseFloat(g('#f-gpa'))||null, sat:parseInt(g('#f-sat'))||null, tier:g('#f-tier')||null, current_club:g('#f-club'), highlights_url:g('#f-url'), notes:g('#f-notes'), budget_min:parseInt(g('#f-budget-min'))||null, budget_max:parseInt(g('#f-budget-max'))||null, preferred_states:g('#f-pref-states')||null, preferred_division:g('#f-pref-div')||null, career_goals:g('#f-career-goals')||null };
     if (!payload.full_name) { toast('name required', true); return; }
   } else if (type === 'pipeline') {
     payload = { player_id:g('#f-player')||null, school_id:g('#f-school')||null, status:g('#f-status'), last_contact_date:g('#f-date')||null, next_step:g('#f-next'), notes:g('#f-notes') };
