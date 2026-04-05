@@ -1044,7 +1044,7 @@ async function buildUSMap() {
   if (!_usTopoJson) {
     wrap.innerHTML = '<div id="map-loading">loading map…</div>';
     try {
-      _usTopoJson = await d3.json('https://cdn.jsdelivr.net/npm/us-atlas@3/states-albers-10m.json');
+      _usTopoJson = await d3.json('https://cdn.jsdelivr.net/npm/us-atlas@3/states-10m.json');
     } catch(e) {
       wrap.innerHTML = '<div id="map-loading" style="color:#c8736a">failed to load map — check connection</div>';
       return;
@@ -1068,119 +1068,108 @@ async function buildUSMap() {
   };
 
   const features = topojson.feature(_usTopoJson, _usTopoJson.objects.states).features;
-  const nation   = topojson.feature(_usTopoJson, _usTopoJson.objects.nation);
   const borders  = topojson.mesh(_usTopoJson, _usTopoJson.objects.states, (a, b) => a !== b);
 
-  // Standard Albers USA 975×610 viewBox
+  // states-10m.json uses spherical coordinates — apply Albers USA projection correctly
   const projection = d3.geoAlbersUsa().scale(1300).translate([487.5, 305]);
-  const pathGen = d3.geoPath().projection(projection);
+  const pathGen    = d3.geoPath().projection(projection);
 
+  const W = 975, H = 610;
   const svgEl = d3.create('svg')
-    .attr('viewBox', '0 0 975 610')
-    .style('width', '100%')
-    .style('height', '100%')
-    .style('display', 'block');
+    .attr('viewBox', `0 0 ${W} ${H}`)
+    .style('width', '100%').style('height', '100%').style('display', 'block');
+
+  // Background
+  svgEl.append('rect').attr('width', W).attr('height', H).attr('fill', '#232220');
 
   // State fills
-  const stateG = svgEl.append('g');
   features.forEach(feature => {
-    const fips = String(feature.id).padStart(2, '0');
-    const abbr = FIPS_TO_ABBR[fips];
+    const fips  = String(feature.id).padStart(2, '0');
+    const abbr  = FIPS_TO_ABBR[fips];
     if (!abbr) return;
-
-    const count = countForState(abbr);
+    const count      = countForState(abbr);
     const isSelected = mapSelectedState === abbr;
+    const fill = isSelected ? '#8EB5A3'
+               : count > 0  ? '#3a5c50'
+               :               '#2e2c29';
+    const stroke = isSelected ? '#8EB5A3' : count > 0 ? '#4a7060' : '#3a3835';
 
-    let cls = 'us-state';
-    if (isSelected) cls += ' selected';
-    else if (count > 0) cls += ' has-schools';
-    else cls += ' empty';
-
-    stateG.append('path')
+    svgEl.append('path')
       .attr('d', pathGen(feature))
-      .attr('class', cls)
-      .attr('data-abbr', abbr)
+      .attr('fill', fill)
+      .attr('stroke', stroke)
+      .attr('stroke-width', isSelected ? 1.5 : 0.7)
+      .style('cursor', 'pointer')
+      .style('transition', 'fill .2s')
+      .on('mouseover', function() { if (!isSelected) d3.select(this).attr('fill', count > 0 ? '#4a7060' : '#383530'); })
+      .on('mouseout',  function() { d3.select(this).attr('fill', fill); })
       .on('click', () => selectMapState(abbr))
-      .append('title')
-        .text(`${STATE_NAMES[abbr] || abbr} — ${count} school${count !== 1 ? 's' : ''}`);
+      .append('title').text(`${STATE_NAMES[abbr]||abbr} · ${count} school${count!==1?'s':''}`);
   });
 
-  // State border mesh
+  // Internal borders (draw after fills so they sit on top)
   svgEl.append('path')
     .datum(borders)
-    .attr('class', 'us-state-border')
-    .attr('d', pathGen);
+    .attr('fill', 'none')
+    .attr('stroke', '#3a3835')
+    .attr('stroke-width', 0.5);
 
-  // Labels: abbr + count at centroid, with callouts for small NE states
-  const labelG = svgEl.append('g').style('pointer-events', 'none');
-
-  // Callout leader-line offset positions for tiny states (x, y of label box)
+  // Labels at centroids
   const CALLOUT_POS = {
-    CT: [880, 155], DE: [895, 225], DC: [900, 275], MA: [900, 115],
-    MD: [900, 245], NH: [880, 75],  NJ: [905, 195], RI: [920, 175], VT: [860, 75]
+    CT:[868,148], DE:[890,215], DC:[892,268], MA:[898,110],
+    MD:[888,238], NH:[876,72],  NJ:[896,188], RI:[912,168], VT:[854,70]
   };
 
   features.forEach(feature => {
     const fips = String(feature.id).padStart(2, '0');
     const abbr = FIPS_TO_ABBR[fips];
     if (!abbr) return;
-
-    const count = countForState(abbr);
-    const centroid = pathGen.centroid(feature);
-    if (!centroid || isNaN(centroid[0])) return;
-
+    const count      = countForState(abbr);
+    const centroid   = pathGen.centroid(feature);
+    if (!centroid || isNaN(centroid[0]) || isNaN(centroid[1])) return;
     const isSelected = mapSelectedState === abbr;
     const hasSchools = count > 0;
-    const textFill = isSelected ? '#2B2926' : hasSchools ? 'rgba(241,238,230,.9)' : 'rgba(241,238,230,.35)';
-    const countFill = isSelected ? '#2B2926' : '#8EB5A3';
+
+    const abbrFill  = isSelected ? '#1c1b19' : hasSchools ? '#c8e0d5' : 'rgba(241,238,230,.28)';
+    const countFill = isSelected ? '#1c1b19' : '#8EB5A3';
 
     if (SMALL_STATES.has(abbr)) {
-      // Callout: leader line + label box on right side
-      const [bx, by] = CALLOUT_POS[abbr] || [centroid[0] + 60, centroid[1]];
+      const [bx, by] = CALLOUT_POS[abbr] || [centroid[0]+55, centroid[1]];
+      // Leader dot at centroid
+      svgEl.append('circle').attr('cx', centroid[0]).attr('cy', centroid[1]).attr('r', 2)
+        .attr('fill', hasSchools ? '#5a9a82' : '#4a4845').style('pointer-events','none');
       // Leader line
-      labelG.append('line')
+      svgEl.append('line')
         .attr('x1', centroid[0]).attr('y1', centroid[1])
-        .attr('x2', bx - 2).attr('y2', by + 6)
-        .attr('stroke', 'rgba(241,238,230,.25)').attr('stroke-width', 0.7);
-      // Box
-      const boxW = count > 0 ? 32 : 24;
-      labelG.append('rect')
-        .attr('x', bx).attr('y', by - 1)
-        .attr('width', boxW).attr('height', 14)
-        .attr('rx', 3)
-        .attr('fill', isSelected ? '#8EB5A3' : hasSchools ? '#3a5c50' : 'rgba(241,238,230,.08)')
-        .attr('stroke', isSelected ? '#8EB5A3' : hasSchools ? 'rgba(142,181,163,.4)' : 'rgba(241,238,230,.15)')
-        .attr('stroke-width', 0.6);
-      labelG.append('text')
-        .attr('x', bx + (count > 0 ? 10 : 12)).attr('y', by + 9)
-        .attr('text-anchor', 'middle')
-        .attr('font-size', 6.5).attr('font-family', 'Jost,sans-serif').attr('font-weight', 700)
-        .attr('fill', textFill)
-        .text(abbr);
-      if (count > 0) {
-        labelG.append('text')
-          .attr('x', bx + 24).attr('y', by + 9)
-          .attr('text-anchor', 'middle')
-          .attr('font-size', 6).attr('font-family', 'Jost,sans-serif').attr('font-weight', 700)
-          .attr('fill', countFill)
-          .text(count);
+        .attr('x2', bx + 14).attr('y2', by + 6)
+        .attr('stroke', hasSchools ? 'rgba(142,181,163,.4)' : 'rgba(241,238,230,.15)')
+        .attr('stroke-width', 0.8).style('pointer-events','none');
+      // Pill background
+      const pillW = hasSchools ? 36 : 24;
+      svgEl.append('rect')
+        .attr('x', bx).attr('y', by - 1).attr('width', pillW).attr('height', 14).attr('rx', 3)
+        .attr('fill', isSelected ? '#8EB5A3' : hasSchools ? '#3a5c50' : '#2a2826')
+        .attr('stroke', isSelected ? '#8EB5A3' : hasSchools ? 'rgba(142,181,163,.5)' : 'rgba(241,238,230,.12)')
+        .attr('stroke-width', 0.7).style('pointer-events','none');
+      // Abbr text
+      svgEl.append('text').attr('x', bx + (hasSchools ? 9 : 12)).attr('y', by + 9.5)
+        .attr('text-anchor', 'middle').attr('font-size', 6).attr('font-family', 'Jost,sans-serif')
+        .attr('font-weight', 700).attr('fill', abbrFill).style('pointer-events','none').text(abbr);
+      if (hasSchools) {
+        svgEl.append('text').attr('x', bx + 28).attr('y', by + 9.5)
+          .attr('text-anchor', 'middle').attr('font-size', 5.5).attr('font-family', 'Jost,sans-serif')
+          .attr('font-weight', 800).attr('fill', countFill).style('pointer-events','none').text(count);
       }
     } else {
-      // Interior label: abbr + count stacked
-      labelG.append('text')
-        .attr('x', centroid[0]).attr('y', centroid[1] + (count > 0 ? -3 : 3))
-        .attr('text-anchor', 'middle')
-        .attr('font-size', abbr === 'AK' ? 9 : 7.5)
-        .attr('font-family', 'Jost,sans-serif').attr('font-weight', 700)
-        .attr('fill', textFill)
-        .text(abbr);
-      if (count > 0) {
-        labelG.append('text')
-          .attr('x', centroid[0]).attr('y', centroid[1] + 9)
-          .attr('text-anchor', 'middle')
-          .attr('font-size', 6.5).attr('font-family', 'Jost,sans-serif').attr('font-weight', 700)
-          .attr('fill', countFill)
-          .text(count);
+      const fontSize = abbr === 'AK' ? 10 : abbr === 'TX' || abbr === 'CA' ? 9 : 7.5;
+      const yOff = hasSchools ? -4 : 3;
+      svgEl.append('text').attr('x', centroid[0]).attr('y', centroid[1] + yOff)
+        .attr('text-anchor', 'middle').attr('font-size', fontSize).attr('font-family', 'Jost,sans-serif')
+        .attr('font-weight', 700).attr('fill', abbrFill).style('pointer-events','none').text(abbr);
+      if (hasSchools) {
+        svgEl.append('text').attr('x', centroid[0]).attr('y', centroid[1] + yOff + 9)
+          .attr('text-anchor', 'middle').attr('font-size', 7).attr('font-family', 'Jost,sans-serif')
+          .attr('font-weight', 800).attr('fill', countFill).style('pointer-events','none').text(count);
       }
     }
   });
@@ -1188,7 +1177,7 @@ async function buildUSMap() {
   wrap.innerHTML = '';
   wrap.appendChild(svgEl.node());
 
-  // Subtitle
+  // Update subtitle
   const statesWithSchools = Object.keys(schoolsByState).filter(k => countForState(k) > 0).length;
   const total = state.schools.filter(s => !divFilter || s.division === divFilter).length;
   const sub = document.getElementById('map-subtitle');
@@ -1809,7 +1798,6 @@ async function confirmStatsCSVImport() {
 
 function showPlayerColsMigration() {
   const sql = `-- Run once in Supabase SQL Editor:
-ALTER TABLE players ADD COLUMN IF NOT EXISTS budget_min integer;
 ALTER TABLE players ADD COLUMN IF NOT EXISTS budget_max integer;
 ALTER TABLE players ADD COLUMN IF NOT EXISTS preferred_states text;
 ALTER TABLE players ADD COLUMN IF NOT EXISTS preferred_division text;
@@ -2108,9 +2096,7 @@ function renderMatchResults() {
   const dob = p.date_of_birth ? new Date(p.date_of_birth) : null;
   const age = dob ? Math.floor((Date.now() - dob) / 31557600000) : null;
 
-  const budgetStr = p.budget_max
-    ? `$${p.budget_min ? Number(p.budget_min).toLocaleString()+' – ' : ''}$${Number(p.budget_max).toLocaleString()}/yr`
-    : null;
+  const budgetStr = p.budget_max ? `up to $${Number(p.budget_max).toLocaleString()}/yr` : null;
 
   // Grade distribution bar
   const totalScored = scored.length || 1;
@@ -3037,10 +3023,7 @@ function getModalForm(type, id) {
     </div>
     <div class="form-field"><label>highlights url</label><input id="f-url" value="${player?.highlights_url||''}"></div>
     <div style="margin:12px 0 6px;font-size:.62rem;font-weight:600;letter-spacing:.08em;color:var(--d2);text-transform:uppercase">matchmaker preferences</div>
-    <div class="form-row">
-      <div class="form-field"><label>annual budget min ($/yr after aid)</label><input type="number" id="f-budget-min" step="1000" min="0" placeholder="e.g. 10000" value="${player?.budget_min||''}"></div>
-      <div class="form-field"><label>annual budget max ($/yr after aid)</label><input type="number" id="f-budget-max" step="1000" min="0" placeholder="e.g. 35000" value="${player?.budget_max||''}"></div>
-    </div>
+    <div class="form-field"><label>max annual budget ($/yr — what family can pay after aid)</label><input type="number" id="f-budget-max" step="1000" min="0" placeholder="e.g. 35000" value="${player?.budget_max||''}"></div>
     <div class="form-row">
       <div class="form-field"><label>preferred states (e.g. CA, TX, NY)</label><input id="f-pref-states" placeholder="comma-separated" value="${player?.preferred_states||''}"></div>
       <div class="form-field"><label>preferred division</label><select id="f-pref-div"><option value="">no preference</option><option ${player?.preferred_division==='D1'?'selected':''} value="D1">D1</option><option ${player?.preferred_division==='D2'?'selected':''} value="D2">D2</option><option ${player?.preferred_division==='D3'?'selected':''} value="D3">D3</option></select></div>
@@ -3118,7 +3101,7 @@ async function saveModal() {
     payload = { name:g('#f-name'), division:g('#f-div'), conference:g('#f-conf'), location:g('#f-location'), head_coach_email:g('#f-hce'), head_coach_phone:g('#f-hcp'), assistant_coach1_email:g('#f-ac1'), assistant_coach2_email:g('#f-ac2'), website:g('#f-web'), notes:g('#f-notes') };
     if (!payload.name) { toast('school name required', true); return; }
   } else if (type === 'player') {
-    payload = { full_name:g('#f-name'), nationality:g('#f-nat'), position:g('#f-pos')||null, date_of_birth:g('#f-dob')||null, gpa:parseFloat(g('#f-gpa'))||null, sat:parseInt(g('#f-sat'))||null, tier:g('#f-tier')||null, current_club:g('#f-club'), highlights_url:g('#f-url'), notes:g('#f-notes'), budget_min:parseInt(g('#f-budget-min'))||null, budget_max:parseInt(g('#f-budget-max'))||null, preferred_states:g('#f-pref-states')||null, preferred_division:g('#f-pref-div')||null, career_goals:g('#f-career-goals')||null };
+    payload = { full_name:g('#f-name'), nationality:g('#f-nat'), position:g('#f-pos')||null, date_of_birth:g('#f-dob')||null, gpa:parseFloat(g('#f-gpa'))||null, sat:parseInt(g('#f-sat'))||null, tier:g('#f-tier')||null, current_club:g('#f-club'), highlights_url:g('#f-url'), notes:g('#f-notes'), budget_max:parseInt(g('#f-budget-max'))||null, preferred_states:g('#f-pref-states')||null, preferred_division:g('#f-pref-div')||null, career_goals:g('#f-career-goals')||null };
     if (!payload.full_name) { toast('name required', true); return; }
   } else if (type === 'pipeline') {
     payload = { player_id:g('#f-player')||null, school_id:g('#f-school')||null, status:g('#f-status'), last_contact_date:g('#f-date')||null, next_step:g('#f-next'), notes:g('#f-notes') };
@@ -3142,7 +3125,22 @@ async function saveModal() {
   if (id) { const r = await sb.from(table).update(payload).eq('id', id); error = r.error; }
   else     { const r = await sb.from(table).insert([payload]); error = r.error; }
 
-  if (error) { toast(error.message, true); return; }
+  if (error) {
+    // Column missing — retry without the new preference fields and prompt migration
+    if (type === 'player' && (error.message?.includes('column') || error.code === 'PGRST204')) {
+      const { budget_max, preferred_states, preferred_division, career_goals, ...basePayload } = payload;
+      const r2 = id
+        ? await sb.from(table).update(basePayload).eq('id', id)
+        : await sb.from(table).insert([basePayload]);
+      if (r2.error) { toast(r2.error.message, true); return; }
+      toast('saved (base fields only — run SQL setup to enable budget & preferences)');
+      closeModal();
+      loadPlayers();
+      showPlayerColsMigration();
+      return;
+    }
+    toast(error.message, true); return;
+  }
   toast('saved');
   closeModal();
   const reloaders = { school:loadSchools, player:loadPlayers, pipeline:loadPipeline, stats:loadStats, benchmark:loadBenchmarks, scholarship:loadScholarships, event:loadEvents };
