@@ -124,6 +124,29 @@ tbody td{padding:12px 12px;font-size:.78rem;color:var(--cream);vertical-align:mi
 .tag-high{background:rgba(111,168,134,.15);color:var(--green)}
 .tag-mid{background:rgba(196,176,122,.15);color:var(--yellow)}
 .tag-low{background:rgba(196,122,122,.15);color:var(--red)}
+/* Detailed tier chips */
+.tier-chip{display:inline-flex;align-items:center;gap:3px;padding:2px 8px;border-radius:999px;font-size:.61rem;font-weight:700;letter-spacing:.02em;margin:1px 2px;white-space:nowrap}
+.tier-chip-d1{background:rgba(142,181,163,.18);color:var(--d1);border:1px solid rgba(142,181,163,.3)}
+.tier-chip-d2{background:rgba(160,155,196,.18);color:var(--d2);border:1px solid rgba(160,155,196,.3)}
+.tier-chip-d3{background:rgba(196,160,138,.18);color:var(--d3);border:1px solid rgba(196,160,138,.3)}
+.tier-chip-juco{background:rgba(196,196,122,.14);color:#c4c47a;border:1px solid rgba(196,196,122,.25)}
+.tier-chip-naia{background:rgba(160,196,210,.14);color:#8abcd1;border:1px solid rgba(160,196,210,.25)}
+/* Tier multi-picker in modal */
+.tier-picker{display:flex;flex-direction:column;gap:6px}
+.tier-picker-group{display:flex;gap:4px;align-items:center;flex-wrap:wrap}
+.tier-picker-label{font-size:.6rem;font-weight:700;letter-spacing:.07em;color:var(--cream-dim);width:36px;flex-shrink:0}
+.tier-toggle{padding:4px 11px;border-radius:999px;font-size:.66rem;font-weight:600;cursor:pointer;border:1px solid var(--cream-border);background:none;color:var(--cream-dim);transition:all .12s}
+.tier-toggle:hover{border-color:rgba(241,238,230,.3);color:var(--cream)}
+.tier-toggle.active-d1{background:rgba(142,181,163,.2);color:var(--d1);border-color:rgba(142,181,163,.45)}
+.tier-toggle.active-d2{background:rgba(160,155,196,.2);color:var(--d2);border-color:rgba(160,155,196,.45)}
+.tier-toggle.active-d3{background:rgba(196,160,138,.2);color:var(--d3);border-color:rgba(196,160,138,.45)}
+.tier-toggle.active-juco{background:rgba(196,196,122,.15);color:#c4c47a;border-color:rgba(196,196,122,.35)}
+.tier-toggle.active-naia{background:rgba(160,196,210,.15);color:#8abcd1;border-color:rgba(160,196,210,.35)}
+/* School tier badge */
+.school-tier{display:inline-block;padding:1px 6px;border-radius:4px;font-size:.58rem;font-weight:700;letter-spacing:.04em}
+.school-tier-high{background:rgba(111,168,134,.18);color:var(--green)}
+.school-tier-mid{background:rgba(196,176,122,.15);color:var(--yellow)}
+.school-tier-low{background:rgba(196,122,122,.13);color:rgba(196,122,122,.85)}
 .status-dot{display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:6px}
 .verified-yes{color:var(--green)}
 .verified-no{color:rgba(241,238,230,.25)}
@@ -508,7 +531,21 @@ tbody td{padding:12px 12px;font-size:.78rem;color:var(--cream);vertical-align:mi
         <input class="filter-input" type="text" placeholder="search player..." id="pf-search" oninput="renderPlayers()">
         <select class="filter-input" id="pf-tier" onchange="renderPlayers()">
           <option value="">all tiers</option>
-          <option>high</option><option>mid</option><option>low</option>
+          <optgroup label="d1">
+            <option value="high d1">high d1</option><option value="mid d1">mid d1</option><option value="low d1">low d1</option>
+          </optgroup>
+          <optgroup label="d2">
+            <option value="high d2">high d2</option><option value="mid d2">mid d2</option><option value="low d2">low d2</option>
+          </optgroup>
+          <optgroup label="d3">
+            <option value="high d3">high d3</option><option value="mid d3">mid d3</option><option value="low d3">low d3</option>
+          </optgroup>
+          <optgroup label="juco">
+            <option value="high juco">high juco</option><option value="mid juco">mid juco</option><option value="low juco">low juco</option>
+          </optgroup>
+          <optgroup label="naia">
+            <option value="high naia">high naia</option><option value="mid naia">mid naia</option><option value="low naia">low naia</option>
+          </optgroup>
         </select>
         <select class="filter-input" id="pf-pos" onchange="renderPlayers()">
           <option value="">all positions</option>
@@ -520,7 +557,7 @@ tbody td{padding:12px 12px;font-size:.78rem;color:var(--cream);vertical-align:mi
         <table>
           <thead><tr>
             <th>name</th><th>nationality</th><th>position</th><th>dob</th>
-            <th>gpa</th><th>sat</th><th>tier</th><th>club</th><th></th>
+            <th>gpa</th><th>sat</th><th>tiers</th><th>club</th><th></th>
           </tr></thead>
           <tbody id="players-body"></tbody>
         </table>
@@ -1420,13 +1457,117 @@ async function loadPlayers() {
   populatePipelinePlayerSelect();
 }
 
+// ===== TIER PICKER INTERACTION =====
+function toggleTierButton(btn) {
+  const div = btn.dataset.tier.split(' ')[1]; // e.g. 'd1'
+  const divClassMap = { d1:'active-d1', d2:'active-d2', d3:'active-d3', juco:'active-juco', naia:'active-naia' };
+  const activeCls = divClassMap[div] || 'active-d1';
+  btn.classList.toggle(activeCls);
+
+  // Sync hidden input
+  const picker = btn.closest('.tier-picker');
+  if (!picker) return;
+  const active = [...picker.querySelectorAll('.tier-toggle')]
+    .filter(b => b.className.includes('active-'))
+    .map(b => b.dataset.tier);
+  const hidden = document.getElementById('f-tier');
+  if (hidden) hidden.value = active.join(',');
+}
+
+// ===== TIER HELPERS =====
+const ALL_TIERS = [
+  'high d1','mid d1','low d1',
+  'high d2','mid d2','low d2',
+  'high d3','mid d3','low d3',
+  'high juco','mid juco','low juco',
+  'high naia','mid naia','low naia',
+];
+
+// Parse tier field (supports old single values + new comma-separated)
+function parseTiers(tierStr) {
+  if (!tierStr) return [];
+  // Legacy: 'high'/'mid'/'low' → map to d1/d2/d3 equivalents
+  if (tierStr === 'high') return ['high d1'];
+  if (tierStr === 'mid')  return ['mid d2'];
+  if (tierStr === 'low')  return ['low d3'];
+  return tierStr.split(',').map(t => t.trim().toLowerCase()).filter(t => ALL_TIERS.includes(t));
+}
+
+function tierDivision(t) {
+  if (t.includes('d1'))   return 'D1';
+  if (t.includes('d2'))   return 'D2';
+  if (t.includes('d3'))   return 'D3';
+  if (t.includes('juco')) return 'JUCO';
+  if (t.includes('naia')) return 'NAIA';
+  return null;
+}
+function tierLevel(t) {
+  if (t.startsWith('high')) return 'high';
+  if (t.startsWith('mid'))  return 'mid';
+  if (t.startsWith('low'))  return 'low';
+  return null;
+}
+function tierChipClass(t) {
+  if (t.includes('d1'))   return 'tier-chip-d1';
+  if (t.includes('d2'))   return 'tier-chip-d2';
+  if (t.includes('d3'))   return 'tier-chip-d3';
+  if (t.includes('juco')) return 'tier-chip-juco';
+  if (t.includes('naia')) return 'tier-chip-naia';
+  return 'tier-chip-d3';
+}
+function renderTierChips(tierStr) {
+  const tiers = parseTiers(tierStr);
+  if (!tiers.length) return '<span style="color:var(--cream-dim)">—</span>';
+  return tiers.map(t => `<span class="tier-chip ${tierChipClass(t)}">${t}</span>`).join('');
+}
+
+// ── School tier: computed from stats record within each division ──
+function computeSchoolTier(school) {
+  const schoolStats = state.stats.filter(s => s.school_id === school.id);
+  if (!schoolStats.length) return null; // no data yet
+
+  // Aggregate wins and losses across all seasons
+  const totalW = schoolStats.reduce((s, r) => s + (r.wins || 0), 0);
+  const totalL = schoolStats.reduce((s, r) => s + (r.losses || 0), 0);
+  const totalD = schoolStats.reduce((s, r) => s + (r.draws || 0), 0);
+  const played = totalW + totalL + totalD;
+  if (!played) return null;
+
+  const winPct = totalW / played;
+
+  // Compare win% against division peers
+  const divPeers = state.schools
+    .filter(s => s.division === school.division && s.id !== school.id)
+    .map(s => {
+      const pStats = state.stats.filter(r => r.school_id === s.id);
+      const w = pStats.reduce((a, r) => a + (r.wins||0), 0);
+      const l = pStats.reduce((a, r) => a + (r.losses||0), 0);
+      const d = pStats.reduce((a, r) => a + (r.draws||0), 0);
+      const p = w + l + d;
+      return p ? w / p : null;
+    })
+    .filter(v => v !== null)
+    .sort((a, b) => b - a);
+
+  if (!divPeers.length) return winPct >= 0.6 ? 'high' : winPct >= 0.4 ? 'mid' : 'low';
+
+  const rank = divPeers.filter(v => v > winPct).length; // how many are better
+  const pct  = rank / divPeers.length;
+  if (pct < 0.33) return 'high';
+  if (pct < 0.67) return 'mid';
+  return 'low';
+}
+
 function renderPlayers() {
   const search = document.getElementById('pf-search').value.toLowerCase();
-  const tier   = document.getElementById('pf-tier').value;
+  const tierF  = document.getElementById('pf-tier').value;
   const pos    = document.getElementById('pf-pos').value;
   let rows = state.players.filter(p => {
     if (search && !p.full_name.toLowerCase().includes(search)) return false;
-    if (tier && p.tier !== tier) return false;
+    if (tierF) {
+      const tiers = parseTiers(p.tier);
+      if (!tiers.includes(tierF)) return false;
+    }
     if (pos && p.position !== pos) return false;
     return true;
   });
@@ -1443,7 +1584,7 @@ function renderPlayers() {
       <td style="font-size:.72rem">${p.date_of_birth||'—'}</td>
       <td>${p.gpa||'—'}</td>
       <td>${p.sat||'—'}</td>
-      <td><span class="tag tag-${p.tier||'mid'}">${p.tier||'—'}</span></td>
+      <td>${renderTierChips(p.tier)}</td>
       <td style="font-size:.72rem;color:var(--cream-dim)">${p.current_club||'—'}</td>
       <td><div class="row-actions">
         <button class="btn-icon" onclick="openModal('player','${p.id}')">edit</button>
@@ -1947,14 +2088,15 @@ function renderMatchmakerPlayers() {
   }
   list.innerHTML = state.players.map(p => {
     const hex = buildHexSVG(p, 44);
-    const tier = p.tier ? `<span style="color:${p.tier==='high'?'var(--green)':p.tier==='mid'?'var(--yellow)':'var(--red)'}"> · ${p.tier}</span>` : '';
+    const tierChips = parseTiers(p.tier).map(t => `<span class="tier-chip ${tierChipClass(t)}">${t}</span>`).join('');
     const selected = mmSelectedPlayer?.id === p.id;
     return `<div class="mm-player-card${selected?' selected':''}" onclick="selectPlayer('${p.id}')">
       ${hex}
       <div class="mm-player-info">
         <div class="mm-player-name">${p.full_name}</div>
-        <div class="mm-player-meta">${p.position||'—'} · ${p.nationality||'—'}${tier}</div>
+        <div class="mm-player-meta">${p.position||'—'} · ${p.nationality||'—'}</div>
         <div class="mm-player-meta">gpa ${p.gpa||'—'} · sat ${p.sat||'—'}</div>
+        ${tierChips ? `<div style="margin-top:4px;display:flex;flex-wrap:wrap;gap:2px">${tierChips}</div>` : ''}
       </div>
     </div>`;
   }).join('');
@@ -1981,13 +2123,11 @@ function tierLabel(grade) {
 function scorePlayer(player, school) {
   const bench = state.benchmarks.find(b => b.school_id === school.id);
   const sch   = state.scholarships.find(s => s.school_id === school.id);
-  const tierMap = { high:'D1', mid:'D2', low:'D3' };
-  const divOrder = ['D1','D2','D3'];
+  const divOrder = ['D1','D2','D3','NAIA','JUCO'];
   let pts = 0, max = 0;
-  const bd = {}; // breakdown: key -> { earned, possible, label }
+  const bd = {};
 
-  // ── 1. GPA (0–20pts) ──────────────────────────────────────────
-  // Only scored when both player GPA and school benchmark exist
+  // ── 1. GPA eligibility (0–20pts) ──────────────────────────────
   if (bench?.min_gpa && player.gpa) {
     const cap = 20, gap = player.gpa - bench.min_gpa;
     max += cap;
@@ -1995,7 +2135,7 @@ function scorePlayer(player, school) {
     pts += earned; bd.gpa = { earned, possible: cap, label: 'gpa' };
   }
 
-  // ── 2. SAT (0–15pts) ──────────────────────────────────────────
+  // ── 2. SAT eligibility (0–15pts) ──────────────────────────────
   if (bench?.min_sat && player.sat) {
     const cap = 15, gap = player.sat - bench.min_sat;
     max += cap;
@@ -2003,25 +2143,53 @@ function scorePlayer(player, school) {
     pts += earned; bd.sat = { earned, possible: cap, label: 'sat' };
   }
 
-  // ── 3. Division / Athletic tier fit (0–20pts) ─────────────────
-  if (player.tier && school.division) {
-    const cap = 20;
-    max += cap;
-    const pIdx = divOrder.indexOf(tierMap[player.tier]);
-    const sIdx = divOrder.indexOf(school.division);
-    const diff = pIdx >= 0 && sIdx >= 0 ? Math.abs(pIdx - sIdx) : 3;
-    const earned = diff === 0 ? cap : diff === 1 ? Math.round(cap * 0.5) : 0;
-    pts += earned; bd.div = { earned, possible: cap, label: 'div fit' };
+  // ── 3. Detailed tier fit (0–25pts) ─────────────────────────────
+  // Player has multiple tiers (e.g. ['mid d2','low d2','high d3'])
+  // Find the best-matching tier against school division + school tier
+  const playerTiers = parseTiers(player.tier);
+  if (playerTiers.length && school.division) {
+    const cap = 25; max += cap;
+    const schoolTier  = computeSchoolTier(school); // 'high'|'mid'|'low'|null
+    const sDiv        = school.division;
+    const sDivIdx     = divOrder.indexOf(sDiv);
+
+    let best = 0;
+    playerTiers.forEach(pt => {
+      const pDiv    = tierDivision(pt);  // 'D1','D2',etc
+      const pLevel  = tierLevel(pt);     // 'high','mid','low'
+      const pDivIdx = divOrder.indexOf(pDiv || '');
+      const divDiff = pDivIdx >= 0 && sDivIdx >= 0 ? Math.abs(pDivIdx - sDivIdx) : 99;
+
+      let score = 0;
+      if (divDiff === 0) {
+        // Same division — check level vs school tier
+        if (!schoolTier) {
+          // No stats yet — division match alone = 70% of cap
+          score = Math.round(cap * 0.70);
+        } else if (pLevel === schoolTier) {
+          score = cap; // exact match: e.g. mid d2 player → mid d2 school
+        } else {
+          const levels = ['high','mid','low'];
+          const lDiff = Math.abs(levels.indexOf(pLevel) - levels.indexOf(schoolTier));
+          score = lDiff === 1 ? Math.round(cap * 0.6) : Math.round(cap * 0.25);
+        }
+      } else if (divDiff === 1) {
+        score = Math.round(cap * 0.35); // one division away
+      }
+      if (score > best) best = score;
+    });
+
+    pts += best; bd.div = { earned: best, possible: cap, label: 'tier fit' };
   }
 
   // ── 4. Preferred division (0–10pts) ───────────────────────────
-  if (player.preferred_division && player.preferred_division !== '' && school.division) {
+  if (player.preferred_division && school.division) {
     const cap = 10; max += cap;
     const earned = school.division === player.preferred_division ? cap : 0;
     pts += earned; bd.prefDiv = { earned, possible: cap, label: 'pref div' };
   }
 
-  // ── 5. Financial fit (0–25pts) — KEY NEW FACTOR ───────────────
+  // ── 5. Financial fit (0–25pts) ────────────────────────────────
   if (player.budget_max && bench?.tuition) {
     const cap = 25; max += cap;
     const ratio = bench.tuition / player.budget_max;
@@ -2030,12 +2198,10 @@ function scorePlayer(player, school) {
                  : ratio <= 1.25 ? Math.round(cap * 0.3)
                  : 0;
     pts += earned; bd.financial = { earned, possible: cap, label: 'budget' };
-  } else if (player.budget_max && !bench?.tuition) {
-    // tuition unknown — neutral, skip from max so it doesn't penalise
   }
 
   // ── 6. Location preference (0–15pts) ──────────────────────────
-  if (player.preferred_states && player.preferred_states.trim()) {
+  if (player.preferred_states?.trim()) {
     const prefList = player.preferred_states.split(',').map(s => s.trim().toUpperCase()).filter(Boolean);
     if (prefList.length) {
       const cap = 15; max += cap;
@@ -2045,7 +2211,7 @@ function scorePlayer(player, school) {
     }
   }
 
-  // ── 7. Scholarship / aid availability (0–15pts) ───────────────
+  // ── 7. Aid availability (0–15pts) ─────────────────────────────
   {
     const cap = 15; max += cap;
     const earned = sch?.full_rides_available > 0 ? cap
@@ -2055,18 +2221,19 @@ function scorePlayer(player, school) {
     pts += earned; bd.scholarship = { earned, possible: cap, label: 'aid' };
   }
 
-  // ── 8. Not yet in pipeline — opportunity signal (0–5pts) ──────
+  // ── 8. Pipeline freshness (0–5pts) ────────────────────────────
   {
     const cap = 5; max += cap;
     const inPipeline = state.pipeline.find(p => p.player_id === player.id && p.school_id === school.id);
-    const earned = inPipeline ? 0 : cap;
-    pts += earned; bd.pipeline = { earned, possible: cap, label: 'new' };
+    pts += inPipeline ? 0 : cap;
+    bd.pipeline = { earned: inPipeline ? 0 : cap, possible: cap, label: 'new' };
     var inPipelineRef = !!inPipeline;
   }
 
-  if (max === 0) return { pts:0, max:1, pct:0, grade:'F', bench, sch, inPipeline:false, bd };
+  if (max === 0) return { pts:0, max:1, pct:0, grade:'F', bench, sch, inPipeline:false, bd, schoolTierLabel: null };
   const pct = Math.round((pts / max) * 100);
-  return { pts, max, pct, grade: gradeFromScore(pct), bench, sch, inPipeline: inPipelineRef, bd };
+  const schoolTierLabel = computeSchoolTier(school);
+  return { pts, max, pct, grade: gradeFromScore(pct), bench, sch, inPipeline: inPipelineRef, bd, schoolTierLabel };
 }
 
 function renderMatchResults() {
@@ -2121,7 +2288,7 @@ function renderMatchResults() {
           ${p.position ? `<span class="mm-chip">${p.position}</span>` : ''}
           ${p.nationality ? `<span class="mm-chip">${p.nationality}</span>` : ''}
           ${age ? `<span class="mm-chip">${age} yrs</span>` : ''}
-          ${p.tier ? `<span class="mm-chip" style="color:${p.tier==='high'?'var(--green)':p.tier==='mid'?'var(--yellow)':'var(--red)'}">${p.tier} tier</span>` : ''}
+          ${parseTiers(p.tier).length ? parseTiers(p.tier).map(t => `<span class="tier-chip ${tierChipClass(t)}">${t}</span>`).join('') : ''}
           ${p.gpa ? `<span class="mm-chip">gpa ${p.gpa}</span>` : ''}
           ${p.sat ? `<span class="mm-chip">sat ${p.sat}</span>` : ''}
           ${budgetStr ? `<span class="mm-budget-chip">💰 ${budgetStr}</span>` : ''}
@@ -2198,7 +2365,7 @@ function renderMatchResults() {
         <div class="mm-match-info">
           <div class="mm-match-name">${r.school.name}</div>
           <div class="mm-match-sub">
-            <span style="color:${dc};font-weight:700">${r.school.division}</span> · ${r.school.conference||'—'}${r.school.location ? ` · ${r.school.location}` : ''}${r.bench?.tuition ? ` · <span style="color:${p.budget_max && r.bench.tuition <= p.budget_max ? 'var(--green)' : 'var(--yellow)'}">$${Number(r.bench.tuition).toLocaleString()}/yr</span>` : ''}${r.bench?.adm_rate ? ` · ${r.bench.adm_rate}% adm` : ''}
+            <span style="color:${dc};font-weight:700">${r.school.division}</span>${r.schoolTierLabel ? ` <span class="school-tier school-tier-${r.schoolTierLabel}">${r.schoolTierLabel}</span>` : ''} · ${r.school.conference||'—'}${r.school.location ? ` · ${r.school.location}` : ''}${r.bench?.tuition ? ` · <span style="color:${p.budget_max && r.bench.tuition <= p.budget_max ? 'var(--green)' : 'var(--yellow)'}">$${Number(r.bench.tuition).toLocaleString()}/yr</span>` : ''}${r.bench?.adm_rate ? ` · ${r.bench.adm_rate}% adm` : ''}
           </div>
           ${flags.length ? `<div style="font-size:.63rem;margin-top:3px;display:flex;gap:6px;flex-wrap:wrap">${flags.join('')}</div>` : ''}
           <div class="mm-match-bar" style="margin-top:5px"><div class="mm-match-fill" style="width:${r.pct}%;background:${barColor}"></div></div>
@@ -3017,10 +3184,25 @@ function getModalForm(type, id) {
       <div class="form-field"><label>gpa</label><input type="number" step="0.01" min="0" max="4" id="f-gpa" value="${player?.gpa||''}"></div>
       <div class="form-field"><label>sat score</label><input type="number" id="f-sat" value="${player?.sat||''}"></div>
     </div>
-    <div class="form-row">
-      <div class="form-field"><label>tier</label><select id="f-tier"><option value="">—</option><option ${player?.tier==='high'?'selected':''}>high</option><option ${player?.tier==='mid'?'selected':''}>mid</option><option ${player?.tier==='low'?'selected':''}>low</option></select></div>
-      <div class="form-field"><label>current club</label><input id="f-club" value="${player?.current_club||''}"></div>
+    <div class="form-field">
+      <label>player tiers <span style="color:var(--cream-dim);font-weight:400">(select all that apply)</span></label>
+      <div class="tier-picker" id="f-tier-picker">
+        ${[['d1','tier-toggle active-d1'],['d2','tier-toggle active-d2'],['d3','tier-toggle active-d3'],['juco','tier-toggle active-juco'],['naia','tier-toggle active-naia']].map(([div, activeCls]) => {
+          const currentTiers = parseTiers(player?.tier || '');
+          return `<div class="tier-picker-group">
+            <span class="tier-picker-label">${div}</span>
+            ${['high','mid','low'].map(lvl => {
+              const val = `${lvl} ${div}`;
+              const isActive = currentTiers.includes(val);
+              const cls = isActive ? `tier-toggle ${activeCls}` : 'tier-toggle';
+              return `<button type="button" class="${cls}" data-tier="${val}" onclick="toggleTierButton(this)">${lvl}</button>`;
+            }).join('')}
+          </div>`;
+        }).join('')}
+      </div>
+      <input type="hidden" id="f-tier">
     </div>
+    <div class="form-field"><label>current club</label><input id="f-club" value="${player?.current_club||''}"></div>
     <div class="form-field"><label>highlights url</label><input id="f-url" value="${player?.highlights_url||''}"></div>
     <div style="margin:12px 0 6px;font-size:.62rem;font-weight:600;letter-spacing:.08em;color:var(--d2);text-transform:uppercase">matchmaker preferences</div>
     <div class="form-field"><label>max annual budget ($/yr — what family can pay after aid)</label><input type="number" id="f-budget-max" step="1000" min="0" placeholder="e.g. 35000" value="${player?.budget_max||''}"></div>
@@ -3101,6 +3283,14 @@ async function saveModal() {
     payload = { name:g('#f-name'), division:g('#f-div'), conference:g('#f-conf'), location:g('#f-location'), head_coach_email:g('#f-hce'), head_coach_phone:g('#f-hcp'), assistant_coach1_email:g('#f-ac1'), assistant_coach2_email:g('#f-ac2'), website:g('#f-web'), notes:g('#f-notes') };
     if (!payload.name) { toast('school name required', true); return; }
   } else if (type === 'player') {
+    // Sync tier hidden input from active buttons (in case it wasn't synced yet)
+    const picker = document.getElementById('f-tier-picker');
+    if (picker) {
+      const divClassMap = { d1:'active-d1', d2:'active-d2', d3:'active-d3', juco:'active-juco', naia:'active-naia' };
+      const active = [...picker.querySelectorAll('.tier-toggle')].filter(b => Object.values(divClassMap).some(c => b.classList.contains(c))).map(b => b.dataset.tier);
+      const hidden = document.getElementById('f-tier');
+      if (hidden && !hidden.value) hidden.value = active.join(',');
+    }
     payload = { full_name:g('#f-name'), nationality:g('#f-nat'), position:g('#f-pos')||null, date_of_birth:g('#f-dob')||null, gpa:parseFloat(g('#f-gpa'))||null, sat:parseInt(g('#f-sat'))||null, tier:g('#f-tier')||null, current_club:g('#f-club'), highlights_url:g('#f-url'), notes:g('#f-notes'), budget_max:parseInt(g('#f-budget-max'))||null, preferred_states:g('#f-pref-states')||null, preferred_division:g('#f-pref-div')||null, career_goals:g('#f-career-goals')||null };
     if (!payload.full_name) { toast('name required', true); return; }
   } else if (type === 'pipeline') {
