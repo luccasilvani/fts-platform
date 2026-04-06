@@ -614,7 +614,8 @@ tbody td{padding:12px 12px;font-size:.78rem;color:var(--cream);vertical-align:mi
             <div style="font-size:.72rem;color:var(--cream);font-weight:600;margin-bottom:6px">import ncaa stats csv</div>
             <div style="font-size:.66rem;color:var(--cream-dim);line-height:1.7;margin-bottom:10px">
               download from <strong style="color:#7ec8a0">stats.ncaa.org → Soccer → Team Stats</strong> → select year → export.<br>
-              required columns: <code style="background:rgba(255,255,255,.06);padding:1px 5px;border-radius:3px">School, W, L, T (or D)</code> &nbsp;·&nbsp; optional: <code style="background:rgba(255,255,255,.06);padding:1px 5px;border-radius:3px">GF, GA, Conf W, Conf L, Conf T, Conf Rank, Nat Rank, NCAA</code>
+              required columns: <code style="background:rgba(255,255,255,.06);padding:1px 5px;border-radius:3px">School, W, L, T (or D)</code> &nbsp;·&nbsp; optional: <code style="background:rgba(255,255,255,.06);padding:1px 5px;border-radius:3px">GP, GF, GA, GD, Conf W, Conf L, Conf T, Conf Rank, Nat Rank, NCAA</code><br>
+              <span style="color:var(--d1);font-size:.63rem">GP and GD auto-computed from W+L+T and GF−GA if columns are absent</span>
             </div>
             <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
               <input type="file" id="stats-csv-file" accept=".csv,.txt" style="font-size:.7rem;color:var(--cream-dim)" onchange="previewStatsCSV()">
@@ -677,7 +678,7 @@ tbody td{padding:12px 12px;font-size:.78rem;color:var(--cream);vertical-align:mi
         <table>
           <thead id="stats-thead"><tr>
             <th>school</th><th>div</th><th>conference</th><th id="stats-th-season">season</th>
-            <th>w</th><th>l</th><th>d</th><th>gf</th><th>ga</th>
+            <th>gp</th><th>w</th><th>l</th><th>d</th><th>gf</th><th>ga</th><th>gd</th>
             <th>conf rank</th><th>nat rank</th><th>ncaa</th><th></th>
           </tr></thead>
           <tbody id="stats-body"></tbody>
@@ -1522,38 +1523,61 @@ function renderTierChips(tierStr) {
   return tiers.map(t => `<span class="tier-chip ${tierChipClass(t)}">${t}</span>`).join('');
 }
 
-// ── School tier: computed from stats record within each division ──
+// ── School tier: composite score from all seasons' stats ──
+// Uses win% (60%), goals-for per game (20%), goals-against per game (20%).
+// Falls back to win%-only when goal data is absent.
+// Recalculates automatically whenever state.stats changes.
 function computeSchoolTier(school) {
   const schoolStats = state.stats.filter(s => s.school_id === school.id);
-  if (!schoolStats.length) return null; // no data yet
+  if (!schoolStats.length) return null;
 
-  // Aggregate wins and losses across all seasons
-  const totalW = schoolStats.reduce((s, r) => s + (r.wins || 0), 0);
-  const totalL = schoolStats.reduce((s, r) => s + (r.losses || 0), 0);
-  const totalD = schoolStats.reduce((s, r) => s + (r.draws || 0), 0);
-  const played = totalW + totalL + totalD;
-  if (!played) return null;
+  const sum = (arr, key) => arr.reduce((s, r) => s + (Number(r[key]) || 0), 0);
 
-  const winPct = totalW / played;
+  function schoolMetrics(stats) {
+    const w  = sum(stats, 'wins');
+    const l  = sum(stats, 'losses');
+    const d  = sum(stats, 'draws');
+    // prefer stored games_played, fall back to computed
+    const gpStored = sum(stats, 'games_played');
+    const gp = gpStored || (w + l + d);
+    if (!gp) return null;
+    const gf = sum(stats, 'goals_for');
+    const ga = sum(stats, 'goals_against');
+    return { winPct: w / gp, gfPG: gf / gp, gaPG: ga / gp, hasGoals: gf > 0 || ga > 0 };
+  }
 
-  // Compare win% against division peers
-  const divPeers = state.schools
+  const mine = schoolMetrics(schoolStats);
+  if (!mine) return null;
+
+  // Build peer metrics for same division
+  const peers = state.schools
     .filter(s => s.division === school.division && s.id !== school.id)
-    .map(s => {
-      const pStats = state.stats.filter(r => r.school_id === s.id);
-      const w = pStats.reduce((a, r) => a + (r.wins||0), 0);
-      const l = pStats.reduce((a, r) => a + (r.losses||0), 0);
-      const d = pStats.reduce((a, r) => a + (r.draws||0), 0);
-      const p = w + l + d;
-      return p ? w / p : null;
-    })
-    .filter(v => v !== null)
-    .sort((a, b) => b - a);
+    .map(s => schoolMetrics(state.stats.filter(r => r.school_id === s.id)))
+    .filter(Boolean);
 
-  if (!divPeers.length) return winPct >= 0.6 ? 'high' : winPct >= 0.4 ? 'mid' : 'low';
+  if (!peers.length) {
+    return mine.winPct >= 0.6 ? 'high' : mine.winPct >= 0.4 ? 'mid' : 'low';
+  }
 
-  const rank = divPeers.filter(v => v > winPct).length; // how many are better
-  const pct  = rank / divPeers.length;
+  const useGoals = mine.hasGoals || peers.some(p => p.hasGoals);
+
+  let myScore, peerScores;
+  if (useGoals) {
+    // Normalize GF and GA per game across division (0–1)
+    const allGF = [mine.gfPG, ...peers.map(p => p.gfPG)];
+    const allGA = [mine.gaPG, ...peers.map(p => p.gaPG)];
+    const maxGF = Math.max(...allGF) || 1;
+    const maxGA = Math.max(...allGA) || 1;
+    const score = m => m.winPct * 0.60 + (m.gfPG / maxGF) * 0.20 + (1 - m.gaPG / maxGA) * 0.20;
+    myScore    = score(mine);
+    peerScores = peers.map(score).sort((a, b) => b - a);
+  } else {
+    myScore    = mine.winPct;
+    peerScores = peers.map(p => p.winPct).sort((a, b) => b - a);
+  }
+
+  const rank = peerScores.filter(v => v > myScore).length;
+  const pct  = rank / peerScores.length;
   if (pct < 0.33) return 'high';
   if (pct < 0.67) return 'mid';
   return 'low';
@@ -1709,10 +1733,19 @@ function renderStats() {
       const vals = valid.map(r => Number(r[key])).filter(v => v > 0);
       return vals.length ? Math.min(...vals) : null;
     };
+    const totalW  = sum('wins');
+    const totalL  = sum('losses');
+    const totalD  = sum('draws');
+    const totalGF = sum('goals_for');
+    const totalGA = sum('goals_against');
+    // games_played: prefer stored value, fall back to computed
+    const gpStored = sum('games_played');
+    const gp = gpStored || (totalW + totalL + totalD);
+    const gd = totalGF - totalGA;
     return {
       seasons: [...new Set(valid.map(r => r.season).filter(Boolean))].sort().join(', '),
-      wins: sum('wins'), losses: sum('losses'), draws: sum('draws'),
-      gf: sum('goals_for'), ga: sum('goals_against'),
+      wins: totalW, losses: totalL, draws: totalD,
+      gp, gf: totalGF, ga: totalGA, gd,
       confRank: season === 'all' ? minPos('conference_ranking') : (valid[0]?.conference_ranking || null),
       natRank:  season === 'all' ? minPos('national_ranking')   : (valid[0]?.national_ranking || null),
       ncaaApps: valid.filter(r => r.ncaa_tournament).length,
@@ -1735,11 +1768,13 @@ function renderStats() {
       <td><span style="color:${dc(s.division)};font-size:.7rem;font-weight:700">${s.division||'—'}</span></td>
       <td style="font-size:.72rem;color:var(--cream-dim)">${s.conference||'—'}</td>
       <td style="font-size:.7rem;color:var(--cream-dim)">${agg ? fmt(agg.seasons) : '—'}</td>
+      <td style="font-size:.72rem;color:var(--cream-dim)">${agg ? fmt(agg.gp) : '—'}</td>
       <td class="win-n" style="font-weight:700">${agg ? fmt(agg.wins) : '—'}</td>
       <td class="loss-n" style="font-weight:700">${agg ? fmt(agg.losses) : '—'}</td>
       <td class="draw-n">${agg ? fmt(agg.draws) : '—'}</td>
       <td style="font-size:.72rem">${agg ? fmtGF(agg.gf) : '—'}</td>
       <td style="font-size:.72rem">${agg ? fmtGF(agg.ga) : '—'}</td>
+      <td style="font-size:.72rem;${agg && agg.gd > 0 ? 'color:var(--green)' : agg && agg.gd < 0 ? 'color:var(--red)' : ''};font-weight:600">${agg ? (agg.gd > 0 ? '+'+agg.gd : agg.gd || '—') : '—'}</td>
       <td style="font-size:.72rem">${agg ? fmtRank(agg.confRank) : '—'}</td>
       <td style="font-size:.72rem">${agg ? fmtRank(agg.natRank) : '—'}</td>
       <td style="font-size:.7rem">${agg
@@ -1788,11 +1823,13 @@ function previewStatsCSV() {
 // Flexible CSV column name aliases
 const CSV_COL_ALIASES = {
   school: ['school','team','institution','name'],
+  gp:     ['gp','games','games played','played','mp','matches','matches played','g'],
   wins:   ['w','wins','win'],
   losses: ['l','losses','loss'],
   draws:  ['t','d','draws','draw','ties','tie'],
-  gf:     ['gf','goals','goals for','goals scored','g'],
-  ga:     ['ga','goals against','goals allowed','goals conceded'],
+  gf:     ['gf','goals for','goals scored','goals f','for'],
+  ga:     ['ga','goals against','goals allowed','goals conceded','goals a','against'],
+  gd:     ['gd','goal diff','goal differential','diff','+/-'],
   cw:     ['cw','conf w','conference wins','conf wins'],
   cl:     ['cl','conf l','conference losses','conf losses'],
   ct:     ['ct','conf t','conf d','conference draws','conf draws'],
@@ -1821,11 +1858,13 @@ function parseStatsCSV(text, season) {
   const col = key => resolveCsvCol(headers, key);
 
   const schoolIdx  = col('school');
+  const gpIdx      = col('gp');
   const wIdx       = col('wins');
   const lIdx       = col('losses');
   const dIdx       = col('draws');
   const gfIdx      = col('gf');
   const gaIdx      = col('ga');
+  const gdIdx      = col('gd');
   const cwIdx      = col('cw');
   const clIdx      = col('cl');
   const ctIdx      = col('ct');
@@ -1865,14 +1904,23 @@ function parseStatsCSV(text, season) {
       if (found) schoolId = schoolMap[found];
     }
 
+    const wins   = parseNum(wIdx >= 0 ? cells[wIdx] : null);
+    const losses = parseNum(lIdx >= 0 ? cells[lIdx] : null);
+    const draws  = parseNum(dIdx >= 0 ? cells[dIdx] : null);
+    const gf     = gfIdx >= 0 ? parseNum(cells[gfIdx]) : null;
+    const ga     = gaIdx >= 0 ? parseNum(cells[gaIdx]) : null;
+    // games_played: prefer CSV column, fall back to computed from w+l+d
+    const gpRaw  = gpIdx >= 0 ? parseNum(cells[gpIdx]) : null;
+    const gp     = gpRaw != null ? gpRaw : ((wins||0)+(losses||0)+(draws||0)) || null;
+    // goal_differential: prefer CSV column, fall back to computed
+    const gdRaw  = gdIdx >= 0 ? parseNum(cells[gdIdx]) : null;
+    const gd     = gdRaw != null ? gdRaw : (gf != null && ga != null ? gf - ga : null);
     return {
       rawName,
       schoolId: schoolId || null,
-      wins:   parseNum(wIdx >= 0 ? cells[wIdx] : null),
-      losses: parseNum(lIdx >= 0 ? cells[lIdx] : null),
-      draws:  parseNum(dIdx >= 0 ? cells[dIdx] : null),
-      goals_for:    gfIdx >= 0 ? parseNum(cells[gfIdx]) : null,
-      goals_against:gaIdx >= 0 ? parseNum(cells[gaIdx]) : null,
+      games_played: gp,
+      wins, losses, draws,
+      goals_for: gf, goals_against: ga, goal_differential: gd,
       conference_wins:   cwIdx >= 0 ? parseNum(cells[cwIdx]) : null,
       conference_losses: clIdx >= 0 ? parseNum(cells[clIdx]) : null,
       conference_draws:  ctIdx >= 0 ? parseNum(cells[ctIdx]) : null,
@@ -1908,8 +1956,9 @@ async function confirmStatsCSVImport() {
 
     // Build payload — only include non-null values
     const payload = { school_id: r.schoolId, season: String(season), updated_at: new Date().toISOString() };
-    ['wins','losses','draws','goals_for','goals_against','conference_wins','conference_losses',
-     'conference_draws','conference_ranking','national_ranking','ncaa_tournament','ncaa_round'].forEach(k => {
+    ['games_played','wins','losses','draws','goals_for','goals_against','goal_differential',
+     'conference_wins','conference_losses','conference_draws',
+     'conference_ranking','national_ranking','ncaa_tournament','ncaa_round'].forEach(k => {
       if (r[k] !== null && r[k] !== undefined) payload[k] = r[k];
     });
 
@@ -2279,6 +2328,7 @@ async function seedD1Stats2025() {
     const payload = {
       school_id: r.schoolId,
       season,
+      games_played: r.w + r.l + r.t,
       wins:   r.w,
       losses: r.l,
       draws:  r.t,
@@ -2313,8 +2363,10 @@ async function seedD1Stats2025() {
 
 function showStatsMigrationsModal() {
   const sql = `-- Run this in Supabase SQL Editor (once):
+ALTER TABLE team_stats ADD COLUMN IF NOT EXISTS games_played integer;
 ALTER TABLE team_stats ADD COLUMN IF NOT EXISTS goals_for integer;
 ALTER TABLE team_stats ADD COLUMN IF NOT EXISTS goals_against integer;
+ALTER TABLE team_stats ADD COLUMN IF NOT EXISTS goal_differential integer;
 ALTER TABLE team_stats ADD COLUMN IF NOT EXISTS conference_wins integer;
 ALTER TABLE team_stats ADD COLUMN IF NOT EXISTS conference_losses integer;
 ALTER TABLE team_stats ADD COLUMN IF NOT EXISTS conference_draws integer;
