@@ -602,6 +602,7 @@ tbody td{padding:12px 12px;font-size:.78rem;color:var(--cream);vertical-align:mi
           <button class="btn-sync" onclick="toggleStatsCsvPanel()" style="font-size:.72rem">⤓ import csv</button>
           <button class="btn-sync" onclick="loadStats()" style="font-size:.72rem" title="reload from database">↻ refresh</button>
           <button class="btn-sync" onclick="showStatsMigrationsModal()" style="background:none;border-color:#5c8a6a;color:#7ec8a0;font-size:.72rem" title="show SQL to add required columns">⚙ sql setup</button>
+          <button id="btn-seed-d1-2025" class="btn-seed" onclick="seedD1Stats2025()" style="background:rgba(142,181,163,.07);border-color:rgba(142,181,163,.28);color:var(--d1)" title="seed 2025 D1 women's soccer stats (210 teams)">⚡ seed 2025 d1</button>
           <button class="btn-add" onclick="openModal('stats')">+ add record</button>
         </div>
       </div>
@@ -1956,6 +1957,358 @@ ALTER TABLE players ADD COLUMN IF NOT EXISTS career_goals text;`;
       <button onclick="navigator.clipboard.writeText(this.previousElementSibling.value);this.textContent='✓ copied!';setTimeout(()=>this.textContent='copy SQL',1500)" style="margin-top:10px;padding:7px 18px;background:#3a6b50;border:none;color:#fff;border-radius:6px;cursor:pointer;font-size:.82rem">copy SQL</button>
     </div>`;
   document.body.appendChild(overlay);
+}
+
+// ── 2025 D1 Women's Soccer Stats (210 teams) ──────────────────────────────
+const D1_STATS_2025 = [
+  {r:1,  n:'Princeton (Ivy League)',       w:15,l:2, t:2, p:0.842},
+  {r:2,  n:'Bryant (America East)',        w:17,l:2, t:3, p:0.841},
+  {r:3,  n:'Vermont (America East)',       w:14,l:1, t:5, p:0.825},
+  {r:4,  n:'Furman (SoCon)',               w:16,l:2, t:5, p:0.804},
+  {r:5,  n:'High Point (Big South)',       w:14,l:2, t:4, p:0.800},
+  {r:5,  n:'Portland (WCC)',               w:14,l:2, t:4, p:0.800},
+  {r:7,  n:'Delaware (Summit League)',     w:12,l:2, t:3, p:0.794},
+  {r:8,  n:'Maryland (Big Ten)',           w:13,l:2, t:4, p:0.789},
+  {r:9,  n:'NC State (ACC)',               w:16,l:3, t:4, p:0.783},
+  {r:10, n:'Gardner-Webb (Big South)',     w:13,l:3, t:2, p:0.778},
+  {r:11, n:'San Diego (WCC)',              w:13,l:3, t:3, p:0.763},
+  {r:11, n:'Virginia (ACC)',               w:12,l:2, t:5, p:0.763},
+  {r:13, n:'Lindenwood (OVC)',             w:14,l:3, t:4, p:0.762},
+  {r:14, n:'Cornell (Ivy League)',         w:14,l:4, t:2, p:0.750},
+  {r:14, n:'Ga. Southern (Sun Belt)',      w:13,l:4, t:1, p:0.750},
+  {r:14, n:'Stanford (ACC)',               w:14,l:4, t:2, p:0.750},
+  {r:17, n:'Georgetown (Big East)',        w:14,l:4, t:4, p:0.727},
+  {r:18, n:'Hofstra (CAA)',                w:14,l:5, t:1, p:0.725},
+  {r:19, n:'Fla. Atlantic (American)',     w:12,l:4, t:2, p:0.722},
+  {r:20, n:'Grand Canyon (WAC)',           w:14,l:4, t:5, p:0.717},
+  {r:21, n:'Saint Louis (Atlantic 10)',    w:13,l:3, t:8, p:0.708},
+  {r:21, n:'Washington (Big Ten)',         w:16,l:6, t:2, p:0.708},
+  {r:23, n:'Michigan (Big Ten)',           w:12,l:4, t:4, p:0.700},
+  {r:23, n:'San Jose St. (WAC)',           w:12,l:4, t:4, p:0.700},
+  {r:25, n:'UIC (MVC)',                    w:10,l:3, t:5, p:0.694},
+  {r:26, n:'Akron (Big East)',             w:13,l:5, t:3, p:0.690},
+  {r:26, n:'FDU (NEC)',                    w:13,l:5, t:3, p:0.690},
+  {r:26, n:'Kansas City (Summit League)',  w:12,l:4, t:5, p:0.690},
+  {r:26, n:'Marshall (Sun Belt)',          w:12,l:4, t:5, p:0.690},
+  {r:26, n:'West Virginia (Sun Belt)',     w:13,l:5, t:3, p:0.690},
+  {r:31, n:'North Florida (ASUN)',         w:12,l:5, t:2, p:0.684},
+  {r:32, n:'California Baptist (WAC)',     w:10,l:4, t:3, p:0.676},
+  {r:32, n:'Drake (MVC)',                  w:8, l:2, t:7, p:0.676},
+  {r:32, n:'South Fla. (American)',        w:9, l:3, t:5, p:0.676},
+  {r:35, n:'Dayton (Atlantic 10)',         w:8, l:2, t:8, p:0.667},
+  {r:35, n:'UC Irvine (Big West)',         w:11,l:4, t:6, p:0.667},
+  {r:35, n:'UConn (Big East)',             w:12,l:5, t:4, p:0.667},
+  {r:38, n:'Elon (CAA)',                   w:9, l:3, t:7, p:0.658},
+  {r:38, n:'Houston Christian (OVC)',      w:11,l:5, t:3, p:0.658},
+  {r:38, n:'Indiana (Big Ten)',            w:12,l:6, t:1, p:0.658},
+  {r:38, n:'Kentucky (Sun Belt)',          w:10,l:4, t:5, p:0.658},
+  {r:42, n:'UNC Greensboro (SoCon)',       w:12,l:5, t:6, p:0.652},
+  {r:43, n:'Duke (ACC)',                   w:10,l:4, t:6, p:0.650},
+  {r:43, n:'SMU (ACC)',                    w:11,l:5, t:4, p:0.650},
+  {r:45, n:'Belmont (MVC)',                w:8, l:3, t:6, p:0.647},
+  {r:45, n:'Oregon St. (WCC)',             w:10,l:5, t:2, p:0.647},
+  {r:45, n:'Purdue Fort Wayne (Horizon)',  w:8, l:3, t:6, p:0.647},
+  {r:48, n:'Bucknell (Patriot)',           w:9, l:4, t:5, p:0.639},
+  {r:48, n:'Iona (MAAC)',                  w:9, l:4, t:5, p:0.639},
+  {r:48, n:'LIU (NEC)',                    w:8, l:3, t:7, p:0.639},
+  {r:48, n:'Sacred Heart (MAAC)',          w:9, l:4, t:5, p:0.639},
+  {r:52, n:'Utah Valley (WAC)',            w:8, l:4, t:3, p:0.633},
+  {r:53, n:'Cleveland St. (Horizon)',      w:9, l:4, t:6, p:0.632},
+  {r:54, n:'Charlotte (American)',         w:8, l:4, t:4, p:0.625},
+  {r:54, n:'Creighton (Big East)',         w:8, l:4, t:4, p:0.625},
+  {r:54, n:'Marist (MAAC)',                w:8, l:4, t:4, p:0.625},
+  {r:57, n:'Bellarmine (ASUN)',            w:8, l:4, t:5, p:0.618},
+  {r:57, n:'San Francisco (WCC)',          w:10,l:6, t:1, p:0.618},
+  {r:59, n:'Denver (Summit League)',       w:12,l:7, t:3, p:0.614},
+  {r:60, n:'Siena (MAAC)',                 w:9, l:5, t:5, p:0.605},
+  {r:60, n:'Stony Brook (CAA)',            w:9, l:5, t:5, p:0.605},
+  {r:62, n:'Campbell (CAA)',               w:10,l:6, t:4, p:0.600},
+  {r:62, n:'Lehigh (Patriot)',             w:9, l:5, t:6, p:0.600},
+  {r:62, n:'Liberty (OVC)',                w:9, l:5, t:6, p:0.600},
+  {r:62, n:'North Carolina (ACC)',         w:9, l:5, t:6, p:0.600},
+  {r:66, n:'UCF (Sun Belt)',               w:11,l:7, t:3, p:0.595},
+  {r:67, n:'Virginia Tech (ACC)',          w:7, l:4, t:5, p:0.594},
+  {r:68, n:'NIU (MVC)',                    w:8, l:5, t:4, p:0.588},
+  {r:68, n:'Penn (Ivy League)',            w:8, l:5, t:4, p:0.588},
+  {r:68, n:'Wake Forest (ACC)',            w:7, l:4, t:6, p:0.588},
+  {r:71, n:'Fairfield (MAAC)',             w:8, l:5, t:5, p:0.583},
+  {r:72, n:'Seton Hall (Big East)',        w:7, l:4, t:8, p:0.579},
+  {r:72, n:"St. John's (NY) (Big East)",   w:9, l:6, t:4, p:0.579},
+  {r:74, n:'Cal Poly (Big West)',          w:9, l:6, t:5, p:0.575},
+  {r:75, n:'Duquesne (Atlantic 10)',       w:8, l:6, t:2, p:0.563},
+  {r:76, n:'Clemson (ACC)',                w:8, l:6, t:3, p:0.559},
+  {r:76, n:'Northwestern (Big Ten)',       w:8, l:6, t:3, p:0.559},
+  {r:76, n:'Robert Morris (Horizon)',      w:6, l:4, t:7, p:0.559},
+  {r:76, n:'Rutgers (Big Ten)',            w:8, l:6, t:3, p:0.559},
+  {r:76, n:'St. Thomas (MN) (Summit League)', w:7,l:5,t:5, p:0.559},
+  {r:81, n:'Boston U. (Patriot)',          w:10,l:8, t:0, p:0.556},
+  {r:81, n:'Fordham (Atlantic 10)',        w:8, l:6, t:4, p:0.556},
+  {r:81, n:'Green Bay (Horizon)',          w:9, l:7, t:2, p:0.556},
+  {r:84, n:'Davidson (Atlantic 10)',       w:9, l:7, t:3, p:0.553},
+  {r:84, n:'UCLA (Big Ten)',               w:8, l:6, t:5, p:0.553},
+  {r:86, n:'Cal St. Fullerton (Big West)', w:8, l:6, t:6, p:0.550},
+  {r:86, n:'Evansville (MVC)',             w:7, l:5, t:8, p:0.550},
+  {r:86, n:'Notre Dame (ACC)',             w:9, l:7, t:4, p:0.550},
+  {r:86, n:'UC Santa Barbara (Big West)',  w:7, l:5, t:8, p:0.550},
+  {r:90, n:'George Mason (Atlantic 10)',   w:7, l:6, t:3, p:0.531},
+  {r:90, n:'Niagara (MAAC)',               w:8, l:7, t:1, p:0.531},
+  {r:92, n:'Massachusetts (Summit League)',w:6, l:5, t:6, p:0.529},
+  {r:93, n:'Army West Point (Patriot)',    w:7, l:6, t:5, p:0.528},
+  {r:93, n:'Santa Clara (WCC)',            w:6, l:5, t:7, p:0.528},
+  {r:93, n:'Villanova (Big East)',         w:7, l:6, t:5, p:0.528},
+  {r:96, n:'Syracuse (ACC)',               w:9, l:8, t:3, p:0.525},
+  {r:97, n:'Lafayette (Patriot)',          w:8, l:7, t:7, p:0.523},
+  {r:98, n:'American (Patriot)',           w:8, l:8, t:2, p:0.500},
+  {r:98, n:'CSUN (Big West)',              w:6, l:6, t:6, p:0.500},
+  {r:98, n:'California (ACC)',             w:8, l:8, t:2, p:0.500},
+  {r:98, n:'Harvard (Ivy League)',         w:6, l:6, t:5, p:0.500},
+  {r:98, n:'Marquette (Big East)',         w:7, l:7, t:2, p:0.500},
+  {r:98, n:'Missouri St. (American)',      w:6, l:6, t:4, p:0.500},
+  {r:98, n:'Old Dominion (Sun Belt)',      w:5, l:5, t:8, p:0.500},
+  {r:98, n:'UMBC (America East)',          w:6, l:6, t:5, p:0.500},
+  {r:98, n:'UMass Lowell (America East)',  w:7, l:7, t:4, p:0.500},
+  {r:98, n:'UNC Asheville (Big South)',    w:7, l:7, t:2, p:0.500},
+  {r:98, n:'VCU (Atlantic 10)',            w:6, l:6, t:5, p:0.500},
+  {r:98, n:'Wisconsin (Big Ten)',          w:8, l:8, t:0, p:0.500},
+  {r:110,n:'Presbyterian (Big South)',     w:7, l:8, t:5, p:0.475},
+  {r:111,n:'Jacksonville (ASUN)',          w:6, l:7, t:5, p:0.472},
+  {r:111,n:'LMU (CA) (WCC)',               w:5, l:6, t:7, p:0.472},
+  {r:111,n:'Pittsburgh (ACC)',             w:6, l:7, t:5, p:0.472},
+  {r:111,n:'Saint Francis (NEC)',          w:8, l:9, t:1, p:0.472},
+  {r:111,n:"Saint Joseph's (Atlantic 10)", w:6, l:7, t:5, p:0.472},
+  {r:116,n:'La Salle (Atlantic 10)',       w:4, l:5, t:8, p:0.471},
+  {r:116,n:'Queens (NC) (ASUN)',           w:5, l:6, t:6, p:0.471},
+  {r:116,n:'UAlbany (America East)',       w:5, l:6, t:6, p:0.471},
+  {r:119,n:'FGCU (ASUN)',                  w:6, l:7, t:3, p:0.469},
+  {r:119,n:'Loyola Chicago (Atlantic 10)', w:4, l:5, t:7, p:0.469},
+  {r:119,n:'Providence (Big East)',        w:6, l:7, t:3, p:0.469},
+  {r:122,n:'Brown (Ivy League)',           w:6, l:7, t:2, p:0.467},
+  {r:122,n:'UAB (American)',               w:6, l:7, t:2, p:0.467},
+  {r:122,n:'Xavier (Big East)',            w:5, l:6, t:4, p:0.467},
+  {r:125,n:'Western Mich. (MVC)',          w:8, l:10,t:4, p:0.455},
+  {r:126,n:'FIU (American)',               w:7, l:9, t:3, p:0.447},
+  {r:127,n:'San Diego St. (WAC)',          w:7, l:9, t:2, p:0.444},
+  {r:127,n:'South Carolina (Sun Belt)',    w:7, l:9, t:2, p:0.444},
+  {r:127,n:'UIW (OVC)',                    w:5, l:7, t:6, p:0.444},
+  {r:130,n:'Boston College (ACC)',         w:7, l:9, t:1, p:0.441},
+  {r:130,n:'Col. of Charleston (CAA)',     w:6, l:8, t:3, p:0.441},
+  {r:130,n:'Colgate (Patriot)',            w:5, l:7, t:5, p:0.441},
+  {r:130,n:'IU Indy (Horizon)',            w:6, l:8, t:3, p:0.441},
+  {r:130,n:'Louisville (ACC)',             w:5, l:7, t:5, p:0.441},
+  {r:130,n:'Stetson (ASUN)',               w:6, l:8, t:3, p:0.441},
+  {r:136,n:'Drexel (CAA)',                 w:4, l:6, t:6, p:0.438},
+  {r:136,n:'UNLV (WAC)',                   w:4, l:6, t:6, p:0.438},
+  {r:138,n:'Milwaukee (Horizon)',          w:4, l:7, t:8, p:0.421},
+  {r:139,n:'New Hampshire (America East)', w:5, l:8, t:5, p:0.417},
+  {r:139,n:'Quinnipiac (MAAC)',            w:7, l:10,t:1, p:0.417},
+  {r:141,n:'Bowling Green (MVC)',          w:5, l:8, t:4, p:0.412},
+  {r:141,n:'Penn St. (Big Ten)',           w:5, l:8, t:4, p:0.412},
+  {r:141,n:'Seattle U (WCC)',              w:4, l:7, t:6, p:0.412},
+  {r:141,n:'Utah Tech (WAC)',              w:4, l:7, t:6, p:0.412},
+  {r:145,n:'Gonzaga (WCC)',                w:5, l:8, t:3, p:0.406},
+  {r:145,n:'Michigan St. (Big Ten)',       w:5, l:8, t:3, p:0.406},
+  {r:145,n:'Monmouth (CAA)',               w:5, l:8, t:3, p:0.406},
+  {r:148,n:'Northeastern (CAA)',           w:4, l:7, t:4, p:0.400},
+  {r:149,n:'Georgia St. (Sun Belt)',       w:4, l:8, t:6, p:0.389},
+  {r:149,n:'Holy Cross (Patriot)',         w:4, l:8, t:6, p:0.389},
+  {r:149,n:'Mercer (SoCon)',               w:5, l:9, t:4, p:0.389},
+  {r:149,n:'Tulsa (American)',             w:5, l:9, t:4, p:0.389},
+  {r:153,n:'Rhode Island (Atlantic 10)',   w:4, l:8, t:5, p:0.382},
+  {r:154,n:'Manhattan (MAAC)',             w:4, l:8, t:4, p:0.375},
+  {r:154,n:'Ohio St. (Big Ten)',           w:6, l:10,t:0, p:0.375},
+  {r:154,n:'UNCW (CAA)',                   w:5, l:9, t:2, p:0.375},
+  {r:157,n:'SIUE (OVC)',                   w:6, l:11,t:2, p:0.368},
+  {r:157,n:'UC Davis (Big West)',          w:4, l:9, t:6, p:0.368},
+  {r:157,n:'Wofford (SoCon)',              w:6, l:11,t:2, p:0.368},
+  {r:160,n:'Memphis (American)',           w:4, l:8, t:3, p:0.367},
+  {r:161,n:'Detroit Mercy (Horizon)',      w:5, l:10,t:3, p:0.361},
+  {r:161,n:'Navy (Patriot)',               w:3, l:8, t:7, p:0.361},
+  {r:161,n:'Stonehill (NEC)',              w:5, l:10,t:3, p:0.361},
+  {r:164,n:'Butler (Big East)',            w:5, l:10,t:2, p:0.353},
+  {r:164,n:'Eastern Ill. (OVC)',           w:4, l:9, t:4, p:0.353},
+  {r:164,n:'UC Riverside (Big West)',      w:4, l:9, t:4, p:0.353},
+  {r:167,n:'Western Ill. (OVC)',           w:5, l:11,t:4, p:0.350},
+  {r:168,n:'Canisius (MAAC)',              w:5, l:10,t:1, p:0.344},
+  {r:168,n:'Longwood (Big South)',         w:3, l:8, t:5, p:0.344},
+  {r:168,n:'Merrimack (MAAC)',             w:4, l:9, t:3, p:0.344},
+  {r:171,n:'USC Upstate (Big South)',      w:5, l:11,t:3, p:0.342},
+  {r:172,n:'Columbia (Ivy League)',        w:3, l:8, t:4, p:0.333},
+  {r:172,n:'Howard (NEC)',                 w:5, l:11,t:2, p:0.333},
+  {r:172,n:'Oakland (Horizon)',            w:3, l:9, t:6, p:0.333},
+  {r:175,n:'DePaul (Big East)',            w:2, l:8, t:7, p:0.324},
+  {r:175,n:"Mount St. Mary's (MAAC)",      w:3, l:9, t:5, p:0.324},
+  {r:175,n:'NJIT (America East)',          w:3, l:9, t:5, p:0.324},
+  {r:175,n:'Northern Ky. (Horizon)',       w:4, l:10,t:3, p:0.324},
+  {r:175,n:'Oral Roberts (Summit League)', w:4, l:10,t:3, p:0.324},
+  {r:180,n:'Dartmouth (Ivy League)',       w:3, l:8, t:3, p:0.321},
+  {r:181,n:'Central Ark. (ASUN)',          w:4, l:10,t:2, p:0.313},
+  {r:181,n:'Omaha (Summit League)',        w:3, l:9, t:4, p:0.313},
+  {r:181,n:"Saint Mary's (CA) (WCC)",      w:2, l:8, t:6, p:0.313},
+  {r:181,n:"Saint Peter's (MAAC)",         w:4, l:10,t:2, p:0.313},
+  {r:185,n:'UC San Diego (Big West)',      w:2, l:9, t:7, p:0.306},
+  {r:186,n:'St. Bonaventure (Atlantic 10)',w:3, l:9, t:3, p:0.300},
+  {r:186,n:'Yale (Ivy League)',            w:3, l:9, t:3, p:0.300},
+  {r:188,n:'Bradley (MVC)',                w:2, l:9, t:6, p:0.294},
+  {r:188,n:'Lipscomb (ASUN)',              w:2, l:9, t:6, p:0.294},
+  {r:190,n:'Coastal Carolina (Sun Belt)',  w:3, l:9, t:2, p:0.286},
+  {r:191,n:'Loyola Maryland (Patriot)',    w:3, l:10,t:3, p:0.281},
+  {r:192,n:'ETSU (SoCon)',                 w:2, l:9, t:4, p:0.267},
+  {r:193,n:'CSU Bakersfield (Big West)',   w:3, l:11,t:3, p:0.265},
+  {r:193,n:'Southern Ind. (OVC)',          w:2, l:10,t:5, p:0.265},
+  {r:195,n:'VMI (SoCon)',                  w:3, l:12,t:3, p:0.250},
+  {r:195,n:'William & Mary (CAA)',         w:2, l:10,t:4, p:0.250},
+  {r:197,n:'Binghamton (America East)',    w:4, l:13,t:0, p:0.235},
+  {r:197,n:'George Washington (Atlantic 10)',w:2,l:11,t:4,p:0.235},
+  {r:197,n:'Radford (Big South)',          w:2, l:11,t:4, p:0.235},
+  {r:197,n:'Rider (MAAC)',                 w:2, l:11,t:4, p:0.235},
+  {r:201,n:'Pacific (WCC)',                w:4, l:14,t:0, p:0.222},
+  {r:201,n:'Sacramento St. (Big West)',    w:2, l:12,t:4, p:0.222},
+  {r:203,n:'James Madison (Sun Belt)',     w:1, l:10,t:5, p:0.219},
+  {r:204,n:'UTRGV (DI Independent)',       w:1, l:7, t:2, p:0.200},
+  {r:205,n:'Winthrop (Big South)',         w:1, l:12,t:3, p:0.156},
+  {r:205,n:'Wright St. (Horizon)',         w:2, l:13,t:1, p:0.156},
+  {r:207,n:'Air Force (WAC)',              w:1, l:13,t:3, p:0.147},
+  {r:208,n:'Temple (American)',            w:1, l:13,t:2, p:0.125},
+  {r:209,n:'Central Conn. St. (NEC)',      w:1, l:14,t:2, p:0.118},
+  {r:210,n:'Chicago St. (NEC)',            w:1, l:15,t:1, p:0.088},
+];
+
+// Strip conference suffix in parentheses: "Princeton (Ivy League)" → "Princeton"
+function stripConference(name) {
+  return name.replace(/\s*\([^)]+\)\s*$/, '').trim();
+}
+
+// Fuzzy-match a stripped NCAA name against state.schools (D1 only)
+function matchD1School(rawName) {
+  const clean = stripConference(rawName).toLowerCase();
+  const d1 = state.schools.filter(s => s.division === 'D1');
+
+  // 1. Exact
+  let m = d1.find(s => s.name.toLowerCase() === clean);
+  if (m) return m;
+
+  // 2. Abbreviation expansions (common NCAA shortened names)
+  const expand = {
+    'nc state': 'north carolina state', 'fla. atlantic': 'florida atlantic',
+    'south fla.': 'south florida', 'ga. southern': 'georgia southern',
+    'boston u.': 'boston university', 'cal st. fullerton': 'california state fullerton',
+    'col. of charleston': 'college of charleston', 'cal poly': 'cal poly san luis obispo',
+    'csun': 'california state northridge', 'lmu (ca)': 'loyola marymount',
+    'fiu': 'florida international', 'uc irvine': 'university of california irvine',
+    'uc santa barbara': 'university of california santa barbara',
+    'uc davis': 'university of california davis', 'uc riverside': 'university of california riverside',
+    'uc san diego': 'university of california san diego', 'ucf': 'university of central florida',
+    'vcu': 'virginia commonwealth', 'niagara': 'niagara university',
+    'san jose st.': 'san jose state', 'utah tech': 'utah tech university',
+    'njit': 'new jersey institute of technology', 'siue': 'southern illinois edwardsville',
+    'liu': 'long island university', 'fdu': 'fairleigh dickinson',
+    'uic': 'university of illinois chicago', 'uncw': 'unc wilmington',
+    'unc asheville': 'university of north carolina asheville',
+    'unc greensboro': 'university of north carolina greensboro',
+    'western mich.': 'western michigan', 'eastern ill.': 'eastern illinois',
+    'western ill.': 'western illinois', 'northern ky.': 'northern kentucky',
+    'central ark.': 'central arkansas', 'houston christian': 'houston christian university',
+    'penn st.': 'penn state', 'penn': 'university of pennsylvania',
+    'ohio st.': 'ohio state', 'michigan st.': 'michigan state',
+    'army west point': 'army', 'uiw': 'incarnate word',
+    'csu bakersfield': 'california state bakersfield',
+    'umbc': 'university of maryland baltimore county',
+    'umass lowell': 'university of massachusetts lowell',
+    'uconn': 'university of connecticut', 'ualbany': 'albany',
+    'george mason': 'george mason university',
+    "st. john's (ny)": "st. john's", 'fgcu': 'florida gulf coast',
+    'vmi': 'virginia military institute', 'etsu': 'east tennessee state',
+    'utrgv': 'ut rio grande valley', 'niu': 'northern illinois',
+    'bradley': 'bradley university', 'wright st.': 'wright state',
+    'oral roberts': 'oral roberts university', 'saint mary\'s (ca)': 'saint mary\'s college of california',
+    'pacific': 'university of the pacific', 'sacramento st.': 'sacramento state',
+    'cal st. fullerton': 'california state fullerton',
+    'detroit mercy': 'university of detroit mercy',
+  };
+
+  const expanded = expand[clean] || clean;
+  m = d1.find(s => s.name.toLowerCase() === expanded);
+  if (m) return m;
+
+  // 3. Platform name contains NCAA name (or vice-versa)
+  m = d1.find(s => {
+    const sn = s.name.toLowerCase();
+    return sn.includes(clean) || clean.includes(sn);
+  });
+  if (m) return m;
+
+  // 4. Significant word overlap (words > 3 chars)
+  const words = clean.split(/\s+/).filter(w => w.length > 3 && !['university','college','state'].includes(w));
+  if (words.length) {
+    m = d1.find(s => {
+      const sn = s.name.toLowerCase();
+      return words.filter(w => sn.includes(w)).length >= Math.min(2, words.length);
+    });
+  }
+  return m || null;
+}
+
+async function seedD1Stats2025() {
+  if (!state.schools.length) { toast('load schools first — refresh the page', true); return; }
+
+  const btn = document.getElementById('btn-seed-d1-2025');
+  btn.disabled = true;
+
+  // Match all 210 rows to schools in DB
+  const rows = D1_STATS_2025.map(d => {
+    const school = matchD1School(d.n);
+    return school ? { schoolId: school.id, rawName: d.n, w: d.w, l: d.l, t: d.t } : null;
+  });
+  const matched = rows.filter(Boolean);
+  const unmatched = D1_STATS_2025.filter((_, i) => !rows[i]).map(d => d.n);
+
+  if (!matched.length) {
+    toast('no D1 schools matched — make sure D1 schools are seeded first', true);
+    btn.disabled = false;
+    btn.textContent = '⚡ seed 2025 d1';
+    return;
+  }
+
+  const season = '2025';
+  let saved = 0, errors = 0;
+
+  for (let i = 0; i < matched.length; i++) {
+    const pct = Math.round(((i + 1) / matched.length) * 100);
+    btn.textContent = `⏳ ${pct}%`;
+    const r = matched[i];
+    const payload = {
+      school_id: r.schoolId,
+      season,
+      wins:   r.w,
+      losses: r.l,
+      draws:  r.t,
+      updated_at: new Date().toISOString(),
+    };
+    const existing = state.stats.find(s => s.school_id === r.schoolId && String(s.season) === season);
+    let err;
+    if (existing) {
+      ({ error: err } = await sb.from('team_stats').update(payload).eq('id', existing.id));
+    } else {
+      ({ error: err } = await sb.from('team_stats').insert([payload]));
+    }
+    if (err) { errors++; console.warn('seed 2025 d1 error:', err.message, r.rawName); }
+    else saved++;
+    await new Promise(res => setTimeout(res, 40));
+  }
+
+  btn.disabled = false;
+  btn.textContent = '⚡ seed 2025 d1';
+
+  await loadStats();
+  setStatsSeason('2025');
+
+  const unmatchedNote = unmatched.length ? ` · ${unmatched.length} unmatched` : '';
+  const errNote = errors ? ` · ${errors} errors` : '';
+  toast(`seeded ${saved} / ${matched.length} d1 schools for 2025${errNote}${unmatchedNote}`);
+
+  if (unmatched.length) {
+    console.log('[seed 2025 d1] unmatched schools:', unmatched);
+  }
 }
 
 function showStatsMigrationsModal() {
