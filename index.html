@@ -2115,6 +2115,48 @@ ALTER TABLE players ADD COLUMN IF NOT EXISTS career_goals text;`;
   document.body.appendChild(overlay);
 }
 
+function showTierConstraintModal() {
+  const sql =
+`-- Run once in Supabase SQL Editor to allow multiple tiers per player:
+
+-- Step 1: find and drop the old single-value check constraint
+DO $$
+DECLARE cname text;
+BEGIN
+  SELECT constraint_name INTO cname
+  FROM information_schema.table_constraints
+  WHERE table_name = 'players'
+    AND constraint_type = 'CHECK'
+    AND (constraint_name ILIKE '%tier%' OR constraint_name ILIKE '%players_tier%');
+  IF cname IS NOT NULL THEN
+    EXECUTE 'ALTER TABLE players DROP CONSTRAINT ' || quote_ident(cname);
+  END IF;
+END $$;
+
+-- Step 2: confirm the column accepts free-form text (comma-separated tiers)
+ALTER TABLE players ALTER COLUMN tier TYPE text;`;
+
+  const overlay = document.createElement('div');
+  overlay.style.cssText = `position:fixed;inset:0;background:rgba(0,0,0,.8);z-index:9999;display:flex;align-items:center;justify-content:center`;
+  overlay.innerHTML = `
+    <div style="background:#1c1b19;border:1px solid #7a4a4a;border-radius:12px;padding:28px;max-width:580px;width:90%;position:relative">
+      <button onclick="this.closest('div[style]').remove()" style="position:absolute;top:12px;right:16px;background:none;border:none;color:#c8c6bc;font-size:1.2rem;cursor:pointer">✕</button>
+      <h3 style="color:#f0ede3;margin:0 0 6px;font-size:1rem">⚠ Player Tier — Database Constraint</h3>
+      <p style="color:#a8a69a;font-size:.82rem;margin:0 0 6px;line-height:1.6">
+        Your <code style="color:#c47a7a">players.tier</code> column has a <strong style="color:#f0ede3">CHECK constraint</strong> that only allows single values like <code style="color:#c47a7a">'high'</code>. It must be dropped before multiple tiers (e.g. <code style="color:#7ec8a0">"mid d1,low d2"</code>) can be stored.
+      </p>
+      <p style="color:#a8a69a;font-size:.82rem;margin:0 0 14px;line-height:1.6">
+        Run this in <strong style="color:#f0ede3">Supabase → SQL Editor</strong>, then re-open the player and save again — all tiers will save correctly.
+      </p>
+      <textarea onclick="this.select()" readonly style="width:100%;height:180px;background:#111;border:1px solid #5a3030;color:#7ec8a0;font-family:monospace;font-size:.75rem;padding:10px;border-radius:6px;resize:none;box-sizing:border-box">${sql}</textarea>
+      <div style="display:flex;gap:10px;margin-top:12px;align-items:center">
+        <button onclick="navigator.clipboard.writeText(this.parentElement.previousElementSibling.value);this.textContent='✓ copied!';setTimeout(()=>this.textContent='copy SQL',1500)" style="padding:7px 18px;background:#6b3a3a;border:none;color:#fff;border-radius:6px;cursor:pointer;font-size:.82rem">copy SQL</button>
+        <span style="font-size:.72rem;color:#a8a69a">player data was saved — only the tier field needs to be re-set after running this SQL</span>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+}
+
 // ── 2025 D1 Women's Soccer Stats (210 teams) ──────────────────────────────
 const D1_STATS_2025 = [
   {r:1,  n:'Princeton (Ivy League)',       w:15,l:2, t:2, p:0.842},
@@ -3903,7 +3945,23 @@ async function saveModal() {
   else     { const r = await sb.from(table).insert([payload]); error = r.error; }
 
   if (error) {
-    // Column missing — retry without the new preference fields and prompt migration
+    // ── Tier check constraint violation ─────────────────────────────────────
+    // Postgres error 23514: "new row violates check constraint"
+    // The tier column has an old single-value CHECK that blocks comma-separated tiers.
+    if (type === 'player' && (error.code === '23514' || (error.message||'').toLowerCase().includes('check constraint') || (error.message||'').toLowerCase().includes('tier'))) {
+      // Save without the tier field so no player data is lost
+      const { tier, ...payloadNoTier } = payload;
+      const r2 = id
+        ? await sb.from(table).update(payloadNoTier).eq('id', id)
+        : await sb.from(table).insert([payloadNoTier]);
+      if (r2.error) { toast(r2.error.message, true); return; }
+      toast('player saved — tier not stored yet (run SQL fix below)', false);
+      closeModal();
+      loadPlayers();
+      showTierConstraintModal();
+      return;
+    }
+    // ── Missing column — retry without new preference fields ─────────────────
     if (type === 'player' && (error.message?.includes('column') || error.code === 'PGRST204')) {
       const { budget_max, preferred_states, preferred_division, career_goals, act, ...basePayload } = payload;
       const r2 = id
