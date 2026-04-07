@@ -1885,12 +1885,15 @@ function previewStatsCSV() {
     preview.style.display = 'block';
     const matched   = result.rows.filter(r => r.schoolId);
     const unmatched = result.rows.filter(r => !r.schoolId);
+    const sampleMatched   = matched.slice(0,5).map(r => r.rawName).join(', ');
+    const sampleUnmatched = unmatched.slice(0,8).map(r => r.rawName).join(', ');
     previewText.innerHTML = `
-      <span style="color:#7ec8a0;font-weight:600">${matched.length} schools matched</span>
-      &nbsp;·&nbsp; ${unmatched.length} unmatched
-      &nbsp;·&nbsp; season: <strong style="color:var(--cream)">${season}</strong>
-      &nbsp;·&nbsp; division: <strong style="color:var(--cream)">${division || 'all'}</strong>
-      ${unmatched.length ? `<div style="margin-top:6px;color:#c8906a;font-size:.63rem">unmatched: ${unmatched.slice(0,8).map(r => r.rawName).join(', ')}${unmatched.length > 8 ? ` +${unmatched.length-8} more` : ''}</div>` : ''}
+      <div style="font-size:.75rem;font-weight:700;color:${matched.length ? '#7ec8a0' : '#e07070'};margin-bottom:4px">
+        ${matched.length} / ${result.rows.length} schools matched &nbsp;·&nbsp; season: ${season} &nbsp;·&nbsp; division: ${division || 'all'}
+      </div>
+      ${matched.length ? `<div style="color:#7ec8a0;font-size:.62rem;margin-bottom:3px">✓ e.g.: ${sampleMatched}${matched.length > 5 ? ` +${matched.length-5} more` : ''}</div>` : ''}
+      ${unmatched.length ? `<div style="color:#c8906a;font-size:.62rem">✗ unmatched: ${sampleUnmatched}${unmatched.length > 8 ? ` +${unmatched.length-8} more` : ''}</div>` : ''}
+      ${matched.length === 0 ? `<div style="color:#e07070;font-size:.62rem;margin-top:4px">⚠ 0 schools matched — check division filter and CSV school name column. Open browser console (F12) for details.</div>` : ''}
     `;
   };
   reader.readAsText(file);
@@ -2032,8 +2035,14 @@ function parseStatsCSV(text, season, division) {
   const parseNum  = v => { const n = parseInt((v||'').trim().replace(/^\+/,'').replace(/[^0-9\-]/g,'')); return isNaN(n) ? null : n; };
   const parseBool = v => /yes|true|1|x|✓/i.test((v||'').trim());
 
-  // Build school name lookup, filtered by division when specified
-  const schoolPool = division ? state.schools.filter(s => s.division === division) : state.schools;
+  // Build school name lookup, filtered by division when specified.
+  // Fall back to all schools if division filter yields 0 (e.g. DB uses different casing).
+  const schoolPool = (() => {
+    if (!division) return state.schools;
+    const filtered = state.schools.filter(s => s.division === division);
+    if (filtered.length === 0) { console.warn(`[CSV Import] division filter "${division}" matched 0 schools — falling back to all schools`); return state.schools; }
+    return filtered;
+  })();
   const schoolMap = {};
   schoolPool.forEach(s => {
     schoolMap[s.name.toLowerCase().trim()] = s.id;
@@ -2043,33 +2052,47 @@ function parseStatsCSV(text, season, division) {
 
   const stripWords = s => s.replace(/\b(university|college|institute|of|the|at)\b/gi,' ').replace(/\s+/g,' ').trim();
 
-  const rows = lines.slice(1).map(line => {
+  console.log(`[CSV Import] schoolPool size: ${schoolPool.length}, division filter: ${division || 'none'}`);
+  console.log(`[CSV Import] sample schoolMap keys:`, Object.keys(schoolMap).slice(0, 10));
+
+  const rows = lines.slice(1).map((line, lineIdx) => {
     const cells = splitLine(line);
     const rawNameFull = schoolIdx >= 0 ? cells[schoolIdx] : '';
     if (!rawNameFull || /^\d+$/.test(rawNameFull.trim())) return null;
 
-    // Expand NCAA abbreviated name, strips all trailing parentheticals
-    const rawName = expandNcaaName(rawNameFull);
-    const nameLower = rawName.toLowerCase();
+    // Step 1: strip ALL trailing parentheticals — "Duke (ACC)" → "Duke"
+    const rawName = rawNameFull.replace(/(\s*\([^)]+\))+\s*$/, '').trim();
+    const nameLower = rawName.toLowerCase().trim();
 
-    // 1. Exact match on full name
+    // 1. Exact match on cleaned name
     let schoolId = schoolMap[nameLower];
+    let matchMethod = 'exact';
 
-    // 2. Match after stripping "university", "college", etc.
-    if (!schoolId) schoolId = schoolMap[stripWords(nameLower)];
-
-    // 3. Also try the unexpanded name (handles cases where DB uses same abbreviation)
+    // 2. Strip "university", "college", "of", etc. from CSV name
     if (!schoolId) {
-      const raw2 = rawNameFull.replace(/(\s*\([^)]+\))+\s*$/, '').trim().toLowerCase();
-      schoolId = schoolMap[raw2] || schoolMap[stripWords(raw2)];
+      schoolId = schoolMap[stripWords(nameLower)];
+      matchMethod = 'stripped';
     }
 
-    // 4. Partial containment match (last resort, key must be >3 chars to avoid noise)
+    // 3. Try expanded version (abbreviations like "Western Mich." → "Western Michigan")
+    if (!schoolId) {
+      const expanded = expandNcaaName(rawName).toLowerCase();
+      schoolId = schoolMap[expanded] || schoolMap[stripWords(expanded)];
+      matchMethod = 'expanded';
+    }
+
+    // 4. Partial containment match (last resort)
     if (!schoolId) {
       const found = Object.keys(schoolMap).find(k =>
-        k.length > 3 && (k.includes(nameLower) || nameLower.includes(k))
+        k.length > 4 && (k.includes(nameLower) || nameLower.includes(k))
       );
-      if (found) schoolId = schoolMap[found];
+      if (found) { schoolId = schoolMap[found]; matchMethod = 'partial'; }
+    }
+
+    if (lineIdx < 5) {
+      console.log(`[CSV Import] line ${lineIdx+1}: "${rawNameFull}" → "${rawName}" → schoolId=${schoolId} (${schoolId ? matchMethod : 'NO MATCH'})`);
+    } else if (!schoolId && lineIdx < 20) {
+      console.log(`[CSV Import] UNMATCHED: "${rawNameFull}" → "${rawName}"`);
     }
 
     // Parse W/L/D — prefer separate columns, fall back to combined W-L-T column
