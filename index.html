@@ -1867,7 +1867,8 @@ function previewStatsCSV() {
 // Flexible CSV column name aliases
 const CSV_COL_ALIASES = {
   school: ['school','team','institution','name','school name','team name'],
-  gp:     ['gp','g','games','games played','played','mp','matches','matches played','gms','gp played'],
+  gp:     ['gp','g','games','games played','played','mp','matches','matches played','gms','gp played','team games'],
+  wlt:    ['w-l','w-l-t','wlt','wl','record','w/l','w/l/t','w-l-d','result'],
   wins:   ['w','wins','win','won','w (wins)'],
   losses: ['l','losses','loss','lost','l (losses)'],
   draws:  ['t','d','draws','draw','ties','tie','tied','otl','drew','t (ties)','d (draws)'],
@@ -1892,6 +1893,29 @@ function resolveCsvCol(headers, key) {
   return -1;
 }
 
+// Parse combined W-L-T string like "11-4-4" or "11-4-2004" (Excel date corruption)
+// Excel corrupts small draw counts: 4 → 2004, 6 → 2006, etc.
+function parseWLT(val) {
+  if (!val) return null;
+  const parts = String(val).trim().split('-');
+  if (parts.length < 2) return null;
+  const w = parseInt(parts[0], 10);
+  const l = parseInt(parts[1], 10);
+  let d = 0;
+  if (parts.length >= 3) {
+    const raw = parseInt(parts[2], 10);
+    // Excel corruption: year-like value 2000-2099 → actual value is raw - 2000
+    d = (raw >= 2000 && raw <= 2099) ? raw - 2000 : raw;
+  }
+  if (isNaN(w) || isNaN(l)) return null;
+  return { wins: w, losses: l, draws: isNaN(d) ? 0 : d };
+}
+
+// Strip conference suffix like "(ACC)", "(Ivy League)" from school name
+function stripConferenceSuffix(name) {
+  return (name || '').replace(/\s*\([^)]+\)\s*$/, '').trim();
+}
+
 function parseStatsCSV(text, season) {
   // Handle CRLF and LF
   const lines = text.replace(/\r/g, '').split('\n').filter(l => l.trim());
@@ -1911,19 +1935,20 @@ function parseStatsCSV(text, season) {
     // Try first column; if it looks like a rank number column, use second
     schoolIdx = (headers[0].match(/^(rank|rk|#|no\.?)$/i)) ? 1 : 0;
   }
-  const gpIdx      = col('gp');
-  const wIdx       = col('wins');
-  const lIdx       = col('losses');
-  const dIdx       = col('draws');
-  const gfIdx      = col('gf');
-  const gaIdx      = col('ga');
-  const gdIdx      = col('gd');
-  const cwIdx      = col('cw');
-  const clIdx      = col('cl');
-  const ctIdx      = col('ct');
-  const confRankIdx= col('confRank');
-  const natRankIdx = col('natRank');
-  const ncaaIdx    = col('ncaa');
+  const gpIdx        = col('gp');
+  const wltIdx       = col('wlt');   // combined W-L or W-L-T column
+  const wIdx         = col('wins');
+  const lIdx         = col('losses');
+  const dIdx         = col('draws');
+  const gfIdx        = col('gf');
+  const gaIdx        = col('ga');
+  const gdIdx        = col('gd');
+  const cwIdx        = col('cw');
+  const clIdx        = col('cl');
+  const ctIdx        = col('ct');
+  const confRankIdx  = col('confRank');
+  const natRankIdx   = col('natRank');
+  const ncaaIdx      = col('ncaa');
   const ncaaRoundIdx = col('ncaaRound');
 
   const parseNum  = v => { const n = parseInt((v||'').replace(/[^0-9]/g,'')); return isNaN(n) ? null : n; };
@@ -1940,26 +1965,40 @@ function parseStatsCSV(text, season) {
 
   const rows = lines.slice(1).map(line => {
     const cells = splitLine(line);
-    const rawName = schoolIdx >= 0 ? cells[schoolIdx] : '';
-    if (!rawName) return null;
+    const rawNameFull = schoolIdx >= 0 ? cells[schoolIdx] : '';
+    if (!rawNameFull) return null;
 
-    // Match school
+    // Strip conference suffix (e.g. "Duke (ACC)" → "Duke") for matching
+    const rawName = stripConferenceSuffix(rawNameFull);
+
+    // Match school — progressively fuzzier lookups
     const nameLower = rawName.toLowerCase().trim();
     let schoolId = schoolMap[nameLower];
     if (!schoolId) {
-      // Fuzzy: strip suffixes
+      // Fuzzy: strip common words
       const stripped = nameLower.replace(/\b(university|college|institute|of|the|at)\b/g,' ').replace(/\s+/g,' ').trim();
       schoolId = schoolMap[stripped];
     }
     if (!schoolId) {
-      // Fuzzy: find partial match
+      // Fuzzy: partial match
       const found = Object.keys(schoolMap).find(k => k.includes(nameLower) || nameLower.includes(k));
       if (found) schoolId = schoolMap[found];
     }
 
-    const wins   = parseNum(wIdx >= 0 ? cells[wIdx] : null);
-    const losses = parseNum(lIdx >= 0 ? cells[lIdx] : null);
-    const draws  = parseNum(dIdx >= 0 ? cells[dIdx] : null);
+    // Parse W/L/D — prefer separate columns, fall back to combined W-L-T column
+    let wins, losses, draws;
+    if (wIdx >= 0 && lIdx >= 0) {
+      wins   = parseNum(cells[wIdx]);
+      losses = parseNum(cells[lIdx]);
+      draws  = dIdx >= 0 ? parseNum(cells[dIdx]) : 0;
+    } else if (wltIdx >= 0) {
+      const parsed = parseWLT(cells[wltIdx]);
+      if (parsed) { wins = parsed.wins; losses = parsed.losses; draws = parsed.draws; }
+      else { wins = null; losses = null; draws = null; }
+    } else {
+      wins = null; losses = null; draws = null;
+    }
+
     const gf     = gfIdx >= 0 ? parseNum(cells[gfIdx]) : null;
     const ga     = gaIdx >= 0 ? parseNum(cells[gaIdx]) : null;
     // games_played: prefer CSV column, fall back to computed from w+l+d
