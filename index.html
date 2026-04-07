@@ -1408,7 +1408,7 @@ function renderSchools() {
     </tr>`).join('');
 }
 
-const STATE_NAMES = {
+const STATE_ABBRS = {
   'alabama':'AL','alaska':'AK','arizona':'AZ','arkansas':'AR','california':'CA',
   'colorado':'CO','connecticut':'CT','delaware':'DE','florida':'FL','georgia':'GA',
   'hawaii':'HI','idaho':'ID','illinois':'IL','indiana':'IN','iowa':'IA',
@@ -1421,26 +1421,22 @@ const STATE_NAMES = {
   'virginia':'VA','washington':'WA','west virginia':'WV','wisconsin':'WI','wyoming':'WY',
   'district of columbia':'DC','washington d.c.':'DC','washington dc':'DC',
 };
-const VALID_ABBRS = new Set(Object.values(STATE_NAMES));
+const VALID_ABBRS = new Set(Object.values(STATE_ABBRS));
 
 function extractState(loc) {
   if (!loc) return '';
   const s = loc.trim();
-  // "City, ST" or "City, State" — look after last comma
   const commaMatch = s.match(/,\s*(.+)$/);
   if (commaMatch) {
     const after = commaMatch[1].trim();
     const upper = after.toUpperCase();
     if (VALID_ABBRS.has(upper)) return upper;
-    const fromName = STATE_NAMES[after.toLowerCase()];
+    const fromName = STATE_ABBRS[after.toLowerCase()];
     if (fromName) return fromName;
   }
-  // Bare 2-letter abbreviation
   if (/^[A-Z]{2}$/i.test(s) && VALID_ABBRS.has(s.toUpperCase())) return s.toUpperCase();
-  // Bare full state name
-  const fromFull = STATE_NAMES[s.toLowerCase()];
+  const fromFull = STATE_ABBRS[s.toLowerCase()];
   if (fromFull) return fromFull;
-  // Last 2 chars fallback (legacy)
   const tail = s.toUpperCase().replace(/[^A-Z]/g, '').slice(-2);
   return VALID_ABBRS.has(tail) ? tail : '';
 }
