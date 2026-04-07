@@ -475,6 +475,7 @@ tbody td{padding:12px 12px;font-size:.78rem;color:var(--cream);vertical-align:mi
         <button class="btn-seed" onclick="seedD3Schools()">D3 schools</button>
         <div style="width:1px;height:18px;background:var(--cream-border);margin:0 4px"></div>
         <button class="btn-seed" onclick="openVerifier()" style="background:rgba(142,181,163,.07);border-color:rgba(142,181,163,.28);color:var(--d1)">↻ verify schools</button>
+        <button class="btn-seed" id="btn-fix-locations" onclick="fixAllLocations()" style="background:rgba(160,155,196,.07);border-color:rgba(160,155,196,.28);color:var(--d2)" title="re-sync city/state for all schools from College Scorecard API">⌖ fix locations</button>
       </div>
       <div class="filters">
         <input class="filter-input" type="text" placeholder="search school..." id="sf-search" oninput="renderSchools()">
@@ -1407,11 +1408,41 @@ function renderSchools() {
     </tr>`).join('');
 }
 
+const STATE_NAMES = {
+  'alabama':'AL','alaska':'AK','arizona':'AZ','arkansas':'AR','california':'CA',
+  'colorado':'CO','connecticut':'CT','delaware':'DE','florida':'FL','georgia':'GA',
+  'hawaii':'HI','idaho':'ID','illinois':'IL','indiana':'IN','iowa':'IA',
+  'kansas':'KS','kentucky':'KY','louisiana':'LA','maine':'ME','maryland':'MD',
+  'massachusetts':'MA','michigan':'MI','minnesota':'MN','mississippi':'MS','missouri':'MO',
+  'montana':'MT','nebraska':'NE','nevada':'NV','new hampshire':'NH','new jersey':'NJ',
+  'new mexico':'NM','new york':'NY','north carolina':'NC','north dakota':'ND','ohio':'OH',
+  'oklahoma':'OK','oregon':'OR','pennsylvania':'PA','rhode island':'RI','south carolina':'SC',
+  'south dakota':'SD','tennessee':'TN','texas':'TX','utah':'UT','vermont':'VT',
+  'virginia':'VA','washington':'WA','west virginia':'WV','wisconsin':'WI','wyoming':'WY',
+  'district of columbia':'DC','washington d.c.':'DC','washington dc':'DC',
+};
+const VALID_ABBRS = new Set(Object.values(STATE_NAMES));
+
 function extractState(loc) {
   if (!loc) return '';
-  const m = loc.match(/,\s*([A-Z]{2})\s*$/);
-  if (m) return m[1];
-  return loc.trim().toUpperCase().slice(-2);
+  const s = loc.trim();
+  // "City, ST" or "City, State" — look after last comma
+  const commaMatch = s.match(/,\s*(.+)$/);
+  if (commaMatch) {
+    const after = commaMatch[1].trim();
+    const upper = after.toUpperCase();
+    if (VALID_ABBRS.has(upper)) return upper;
+    const fromName = STATE_NAMES[after.toLowerCase()];
+    if (fromName) return fromName;
+  }
+  // Bare 2-letter abbreviation
+  if (/^[A-Z]{2}$/i.test(s) && VALID_ABBRS.has(s.toUpperCase())) return s.toUpperCase();
+  // Bare full state name
+  const fromFull = STATE_NAMES[s.toLowerCase()];
+  if (fromFull) return fromFull;
+  // Last 2 chars fallback (legacy)
+  const tail = s.toUpperCase().replace(/[^A-Z]/g, '').slice(-2);
+  return VALID_ABBRS.has(tail) ? tail : '';
 }
 
 // ===== ADVANCED FILTER DRAWER =====
@@ -1839,14 +1870,14 @@ function previewStatsCSV() {
 
 // Flexible CSV column name aliases
 const CSV_COL_ALIASES = {
-  school: ['school','team','institution','name'],
-  gp:     ['gp','games','games played','played','mp','matches','matches played','g','gms'],
-  wins:   ['w','wins','win'],
-  losses: ['l','losses','loss'],
-  draws:  ['t','d','draws','draw','ties','tie','otl'],
-  gf:     ['gf','goals for','goals scored','goals f','gls f','pts f','pts for','pts','goals'],
-  ga:     ['ga','goals against','goals allowed','goals conceded','goals a','gls a','pts a','pts against'],
-  gd:     ['gd','goal diff','goal differential','diff','+/-','margin'],
+  school: ['school','team','institution','name','school name','team name'],
+  gp:     ['gp','g','games','games played','played','mp','matches','matches played','gms','gp played'],
+  wins:   ['w','wins','win','won','w (wins)'],
+  losses: ['l','losses','loss','lost','l (losses)'],
+  draws:  ['t','d','draws','draw','ties','tie','tied','otl','drew','t (ties)','d (draws)'],
+  gf:     ['gf','goals for','goals scored','goals f','gls f','pts f','pts for','pts','goals','goals+','for'],
+  ga:     ['ga','goals against','goals allowed','goals conceded','goals a','gls a','pts a','pts against','against'],
+  gd:     ['gd','goal diff','goal differential','diff','+/-','margin','+/- diff'],
   cw:     ['cw','conf w','conference wins','conf wins'],
   cl:     ['cl','conf l','conference losses','conf losses'],
   ct:     ['ct','conf t','conf d','conference draws','conf draws'],
@@ -1870,11 +1901,20 @@ function parseStatsCSV(text, season) {
   const lines = text.replace(/\r/g, '').split('\n').filter(l => l.trim());
   if (lines.length < 2) return { rows: [], season };
 
+  // Auto-detect delimiter: TSV (NCAA export default) vs CSV
+  const delim = lines[0].includes('\t') ? '\t' : ',';
+  const splitLine = line => line.split(delim).map(c => c.replace(/"/g,'').trim());
+
   // Parse header
-  const headers = lines[0].split(',').map(h => h.replace(/"/g,'').trim());
+  const headers = splitLine(lines[0]);
   const col = key => resolveCsvCol(headers, key);
 
-  const schoolIdx  = col('school');
+  // If no school column found by name, fall back to first non-rank column
+  let schoolIdx = col('school');
+  if (schoolIdx < 0) {
+    // Try first column; if it looks like a rank number column, use second
+    schoolIdx = (headers[0].match(/^(rank|rk|#|no\.?)$/i)) ? 1 : 0;
+  }
   const gpIdx      = col('gp');
   const wIdx       = col('wins');
   const lIdx       = col('losses');
@@ -1903,7 +1943,7 @@ function parseStatsCSV(text, season) {
   });
 
   const rows = lines.slice(1).map(line => {
-    const cells = line.split(',').map(c => c.replace(/"/g,'').trim());
+    const cells = splitLine(line);
     const rawName = schoolIdx >= 0 ? cells[schoolIdx] : '';
     if (!rawName) return null;
 
@@ -3102,6 +3142,53 @@ async function fetchScorecardSchool(nameVariants, apiKey) {
   return null; // no match across all variants
 }
 
+// ── Fix All Locations: re-syncs city/state for every school via Scorecard ──
+async function fixAllLocations() {
+  // Requires an API key — reuse the one in the academic sync panel, or prompt
+  const storedKey = document.getElementById('acad-api-key')?.value?.trim();
+  const apiKey = storedKey || prompt('Enter your College Scorecard API key (api.data.gov):');
+  if (!apiKey) { toast('api key required', true); return; }
+
+  const btn = document.getElementById('btn-fix-locations');
+  btn.disabled = true;
+
+  const schools = state.schools;
+  let updated = 0, notFound = 0;
+
+  for (let i = 0; i < schools.length; i++) {
+    const school = schools[i];
+    btn.textContent = `⌖ fixing ${i + 1}/${schools.length}...`;
+
+    const variants = scorecardNameVariants(school.name);
+    let result = null;
+    for (const v of variants) {
+      try {
+        const url = `https://api.data.gov/ed/collegescorecard/v1/schools?school.name=${encodeURIComponent(v)}&fields=school.name,school.city,school.state&api_key=${apiKey}&per_page=1`;
+        const res = await fetch(url);
+        const json = await res.json();
+        if (json.results?.length) { result = json.results[0]; break; }
+      } catch(e) { break; }
+    }
+
+    if (result?.['school.city'] && result?.['school.state']) {
+      const locVal = `${result['school.city']}, ${result['school.state']}`;
+      if (school.location !== locVal) {
+        const { error } = await sb.from('schools').update({ location: locVal }).eq('id', school.id);
+        if (!error) { school.location = locVal; updated++; }
+      }
+    } else {
+      notFound++;
+    }
+    await new Promise(r => setTimeout(r, 80)); // rate limit
+  }
+
+  btn.disabled = false;
+  btn.textContent = '⌖ fix locations';
+  await loadSchools();
+  buildUSMap();
+  toast(`locations fixed — ${updated} updated · ${notFound} not found in scorecard`);
+}
+
 async function scorecardBatchSync(schools, apiKey, onProgress) {
   // Re-detect columns every run (user may have just run migrations)
   extraColsChecked = false;
@@ -3138,11 +3225,13 @@ async function scorecardBatchSync(schools, apiKey, onProgress) {
       const city       = r['school.city'];
       const stateAbbr  = r['school.state'];
 
-      // Auto-fill location on schools table if blank and column exists
-      if (hasLocationCol && city && stateAbbr && !school.location) {
+      // Always update location if API returned a valid value (overwrites stale data)
+      if (hasLocationCol && city && stateAbbr) {
         const locVal = `${city}, ${stateAbbr}`;
-        const { error: locErr } = await sb.from('schools').update({ location: locVal }).eq('id', school.id);
-        if (!locErr) school.location = locVal;
+        if (school.location !== locVal) {
+          const { error: locErr } = await sb.from('schools').update({ location: locVal }).eq('id', school.id);
+          if (!locErr) school.location = locVal;
+        }
       }
 
       if (!satAvg && !tuitionOut && !admRate) { noData++; continue; }
