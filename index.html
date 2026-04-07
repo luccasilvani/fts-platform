@@ -1782,9 +1782,14 @@ function renderStats() {
     const totalD  = sum('draws');
     const totalGF = sum('goals_for');
     const totalGA = sum('goals_against');
-    // games_played: prefer stored value, fall back to computed
-    const gpStored = sum('games_played');
-    const gp = gpStored || (totalW + totalL + totalD);
+    // GP: for each season row use stored games_played if available, else compute from W+L+D.
+    // Then sum across all seasons so "all" view shows the true total across every year.
+    const gp = valid.reduce((s, r) => {
+      const rowGP = (r.games_played && Number(r.games_played) > 0)
+        ? Number(r.games_played)
+        : ((Number(r.wins)||0) + (Number(r.losses)||0) + (Number(r.draws)||0));
+      return s + rowGP;
+    }, 0) || null;
     const gd = totalGF - totalGA;
     return {
       seasons: [...new Set(valid.map(r => r.season).filter(Boolean))].sort().join(', '),
