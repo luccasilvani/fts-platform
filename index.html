@@ -309,7 +309,7 @@ tbody td{padding:12px 12px;font-size:.78rem;color:var(--cream);vertical-align:mi
 .mm-right{flex:1;overflow-y:auto;padding:28px 36px;position:relative}
 .mm-toggle-btn{background:var(--cream-faint);border:1px solid var(--cream-border);color:var(--cream-dim);border-radius:6px;width:24px;height:24px;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:.8rem;line-height:1;flex-shrink:0;transition:background .15s,color .15s,border-color .15s}
 .mm-toggle-btn:hover{background:rgba(142,181,163,.15);color:var(--d1);border-color:rgba(142,181,163,.4)}
-.mm-expand-btn{position:absolute;top:12px;left:16px;z-index:10;background:var(--cream-faint);border:1px solid var(--cream-border);color:var(--cream-dim);border-radius:7px;padding:5px 11px;display:none;align-items:center;gap:6px;cursor:pointer;font-size:.68rem;font-weight:600;line-height:1;transition:background .15s,color .15s,border-color .15s;white-space:nowrap}
+.mm-expand-btn{position:absolute;top:12px;left:12px;z-index:20;background:rgba(28,26,22,.92);border:1px solid var(--cream-border);color:var(--cream-dim);border-radius:7px;padding:5px 11px;display:none;align-items:center;gap:6px;cursor:pointer;font-size:.68rem;font-weight:600;line-height:1;transition:background .15s,color .15s,border-color .15s;white-space:nowrap;backdrop-filter:blur(4px)}
 .mm-expand-btn:hover{background:rgba(142,181,163,.15);color:var(--d1);border-color:rgba(142,181,163,.4)}
 .mm-player-card{padding:12px 14px;border:1px solid var(--cream-border);border-radius:12px;background:var(--cream-faint);cursor:pointer;margin-bottom:8px;display:flex;align-items:center;gap:12px;transition:background .15s,border-color .15s}
 .mm-player-card:hover{background:rgba(241,238,230,.09);border-color:rgba(241,238,230,.2)}
@@ -642,6 +642,15 @@ tbody td{padding:12px 12px;font-size:.78rem;color:var(--cream);vertical-align:mi
                   <option value="2022">2022</option>
                 </select>
               </div>
+              <div style="display:flex;gap:6px;align-items:center">
+                <span style="font-size:.68rem;color:var(--cream-dim)">division:</span>
+                <select id="stats-csv-division" style="background:#2a2825;border:1px solid var(--cream-border);color:var(--cream);font-size:.72rem;padding:4px 8px;border-radius:4px">
+                  <option value="" selected>all</option>
+                  <option value="D1">D1</option>
+                  <option value="D2">D2</option>
+                  <option value="D3">D3</option>
+                </select>
+              </div>
             </div>
           </div>
           <div id="stats-csv-preview" style="flex:1;min-width:200px;display:none">
@@ -818,8 +827,8 @@ tbody td{padding:12px 12px;font-size:.78rem;color:var(--cream);vertical-align:mi
             <div class="mm-empty">loading players...</div>
           </div>
         </div>
+        <button class="mm-expand-btn" id="mm-expand-btn" onclick="toggleMmPlayerList()" title="show player list">&#9776; players</button>
         <div class="mm-right" id="mm-results">
-          <button class="mm-expand-btn" id="mm-expand-btn" onclick="toggleMmPlayerList()" title="show player list">&#9776; players</button>
           <div class="mm-empty" style="margin-top:60px">← select a player<br>to see their ranked school matches</div>
         </div>
       </div>
@@ -1867,18 +1876,21 @@ function previewStatsCSV() {
   if (!file) return;
   const reader = new FileReader();
   reader.onload = e => {
-    const season = document.getElementById('stats-csv-season').value;
-    const result = parseStatsCSV(e.target.result, season);
+    const season   = document.getElementById('stats-csv-season').value;
+    const division = document.getElementById('stats-csv-division').value || null;
+    const result   = parseStatsCSV(e.target.result, season, division);
     _csvParsed = result;
     const preview = document.getElementById('stats-csv-preview');
     const previewText = document.getElementById('stats-csv-preview-text');
     preview.style.display = 'block';
+    const matched   = result.rows.filter(r => r.schoolId);
     const unmatched = result.rows.filter(r => !r.schoolId);
     previewText.innerHTML = `
-      <span style="color:#7ec8a0;font-weight:600">${result.rows.filter(r => r.schoolId).length} schools matched</span>
+      <span style="color:#7ec8a0;font-weight:600">${matched.length} schools matched</span>
       &nbsp;·&nbsp; ${unmatched.length} unmatched
       &nbsp;·&nbsp; season: <strong style="color:var(--cream)">${season}</strong>
-      ${unmatched.length ? `<div style="margin-top:6px;color:#c8906a;font-size:.63rem">unmatched: ${unmatched.slice(0,5).map(r => r.rawName).join(', ')}${unmatched.length > 5 ? ` +${unmatched.length-5} more` : ''}</div>` : ''}
+      &nbsp;·&nbsp; division: <strong style="color:var(--cream)">${division || 'all'}</strong>
+      ${unmatched.length ? `<div style="margin-top:6px;color:#c8906a;font-size:.63rem">unmatched: ${unmatched.slice(0,8).map(r => r.rawName).join(', ')}${unmatched.length > 8 ? ` +${unmatched.length-8} more` : ''}</div>` : ''}
     `;
   };
   reader.readAsText(file);
@@ -1913,6 +1925,78 @@ function resolveCsvCol(headers, key) {
   return -1;
 }
 
+// Normalize an NCAA CSV school name for DB matching.
+// Strips ALL conference/state parentheticals, expands NCAA state abbreviations,
+// and handles "Cal St.", "St." prefix/suffix, "Int'l", etc.
+function normalizeSchoolNameForMatch(raw) {
+  let n = (raw || '').trim();
+  // Strip ALL trailing parentheticals: "Charleston (WV) (MEC)" → "Charleston"
+  n = n.replace(/(\s*\([^)]+\))+\s*$/, '').trim();
+  n = n.toLowerCase();
+  // Expand NCAA state/school abbreviations (dots required to distinguish from normal words)
+  const abbrevs = [
+    [/\bn\.h\b\.?/g,'new hampshire'],[/\bn\.m\b\.?/g,'new mexico'],
+    [/\bn\.c\b\.?/g,'north carolina'],[/\bs\.c\b\.?/g,'south carolina'],
+    [/\bn\.d\b\.?/g,'north dakota'],[/\bs\.d\b\.?/g,'south dakota'],
+    [/\bw\.va\b\.?/g,'west virginia'],[/\bwest\s+va\b\.?/g,'west virginia'],
+    [/\btex\b\.(?=\s|$)/g,'texas'],[/\bokla\b\.?/g,'oklahoma'],[/\bkan\b\.?/g,'kansas'],
+    [/\bneb\b\.?/g,'nebraska'],[/\bky\b\.?/g,'kentucky'],[/\btenn\b\.?/g,'tennessee'],
+    [/\bala\b\.(?=\s|$)/g,'alabama'],[/\bfla\b\.?/g,'florida'],[/\bga\b\.(?=\s|$)/g,'georgia'],
+    [/\bore\b\.?/g,'oregon'],[/\bwash\b\.?(?=\s|$)/g,'washington'],
+    [/\bmont\b\.?(?=\s|$)/g,'montana'],[/\bcolo\b\.?(?=\s|$)/g,'colorado'],
+    [/\bmich\b\.?(?=\s|$)/g,'michigan'],[/\bmiss\b\.?(?=\s|$)/g,'mississippi'],
+    [/\bark\b\.?/g,'arkansas'],[/\bill\b\.?(?=\s|$)/g,'illinois'],
+    [/\bwis\b\.?(?=\s|$)/g,'wisconsin'],[/\bminn\b\.?(?=\s|$)/g,'minnesota'],
+    [/\bmo\b\.?(?=\s|-|$)/g,'missouri'],
+    [/\bint'?l\b\.?/g,'international'],
+    // Cal prefixes must come before generic "st." handling
+    [/\bcal\s+st\b\.?\s*/g,'california state '],[/\bcal\s+poly\b/g,'california polytechnic'],
+    // "St." at start of name = Saint; "St." at end or before space = State
+    [/^st\.\s+/,'saint '],[/\bst\.\s/g,'state '],[/\bst\.$/,'state'],
+  ];
+  for (const [re, repl] of abbrevs) n = n.replace(re, repl);
+  // Strip remaining dots (e.g. "A.&M." → "A&M" → handled below)
+  n = n.replace(/\.(?=\s|$)/g, '').replace(/\s+/g, ' ').trim();
+  return n;
+}
+
+// Word-overlap school matcher: score every school by how many significant words match,
+// return the highest scorer (avoids wrong first-match on partial string contains).
+function matchSchoolByName(rawName, divisionFilter) {
+  const candidates = divisionFilter
+    ? state.schools.filter(s => s.division === divisionFilter)
+    : state.schools;
+
+  const norm = normalizeSchoolNameForMatch(rawName);
+  const stripped = norm.replace(/\b(university|college|institute|of|the|at|and)\b/g,' ').replace(/\s+/g,' ').trim();
+
+  // Try exact match first (fast path)
+  for (const s of candidates) {
+    const sNorm = normalizeSchoolNameForMatch(s.name);
+    if (sNorm === norm || sNorm === stripped) return s.id;
+    const sStripped = sNorm.replace(/\b(university|college|institute|of|the|at|and)\b/g,' ').replace(/\s+/g,' ').trim();
+    if (sStripped === stripped || sStripped === norm) return s.id;
+  }
+
+  // Word-overlap scoring
+  const queryWords = stripped.split(/\s+/).filter(w => w.length > 2);
+  if (!queryWords.length) return null;
+
+  let bestId = null, bestScore = 0;
+  for (const s of candidates) {
+    const sNorm = normalizeSchoolNameForMatch(s.name)
+      .replace(/\b(university|college|institute|of|the|at|and)\b/g,' ')
+      .replace(/\s+/g,' ').trim();
+    const sWords = new Set(sNorm.split(/\s+/).filter(w => w.length > 2));
+    let score = queryWords.reduce((acc, w) => acc + (sWords.has(w) ? 1 : 0), 0);
+    // Containment bonus: if one normalised name fully contains the other
+    if (stripped.includes(sNorm) || sNorm.includes(stripped)) score += 2;
+    if (score > bestScore) { bestScore = score; bestId = s.id; }
+  }
+  // Require at least 1 real word overlap to avoid garbage matches
+  return bestScore >= 1 ? bestId : null;
+}
+
 // Parse combined W-L-T string like "11-4-4" or "11-4-2004" (Excel date corruption)
 // Excel corrupts small draw counts: 4 → 2004, 6 → 2006, etc.
 function parseWLT(val) {
@@ -1936,10 +2020,10 @@ function stripConferenceSuffix(name) {
   return (name || '').replace(/\s*\([^)]+\)\s*$/, '').trim();
 }
 
-function parseStatsCSV(text, season) {
+function parseStatsCSV(text, season, division) {
   // Handle CRLF and LF
   const lines = text.replace(/\r/g, '').split('\n').filter(l => l.trim());
-  if (lines.length < 2) return { rows: [], season };
+  if (lines.length < 2) return { rows: [], season, division };
 
   // Auto-detect delimiter: TSV (NCAA export default) vs CSV
   const delim = lines[0].includes('\t') ? '\t' : ',';
@@ -1971,36 +2055,34 @@ function parseStatsCSV(text, season) {
   const ncaaIdx      = col('ncaa');
   const ncaaRoundIdx = col('ncaaRound');
 
-  const parseNum  = v => { const n = parseInt((v||'').replace(/[^0-9]/g,'')); return isNaN(n) ? null : n; };
+  const parseNum  = v => { const n = parseInt((v||'').trim().replace(/^\+/,'').replace(/[^0-9\-]/g,'')); return isNaN(n) ? null : n; };
   const parseBool = v => /yes|true|1|x|✓/i.test((v||'').trim());
 
-  // Build name lookup for fuzzy matching
+  // Build school name lookup, filtered by division when specified
+  const schoolPool = division ? state.schools.filter(s => s.division === division) : state.schools;
   const schoolMap = {};
-  state.schools.forEach(s => {
+  schoolPool.forEach(s => {
     schoolMap[s.name.toLowerCase().trim()] = s.id;
-    // Also index common short forms
     const short = s.name.replace(/\b(university|college|institute|of|the|at)\b/gi,' ').replace(/\s+/g,' ').trim().toLowerCase();
-    if (short !== s.name.toLowerCase()) schoolMap[short] = s.id;
+    if (short !== s.name.toLowerCase().trim()) schoolMap[short] = s.id;
   });
 
   const rows = lines.slice(1).map(line => {
     const cells = splitLine(line);
     const rawNameFull = schoolIdx >= 0 ? cells[schoolIdx] : '';
-    if (!rawNameFull) return null;
+    if (!rawNameFull || /^\d+$/.test(rawNameFull.trim())) return null;
 
-    // Strip conference suffix (e.g. "Duke (ACC)" → "Duke") for matching
-    const rawName = stripConferenceSuffix(rawNameFull);
-
-    // Match school — progressively fuzzier lookups
+    // Strip ALL trailing parentheticals: "Duke (ACC)" → "Duke", "Charleston (WV) (MEC)" → "Charleston"
+    const rawName = (rawNameFull).replace(/(\s*\([^)]+\))+\s*$/, '').trim();
     const nameLower = rawName.toLowerCase().trim();
+
+    // Match school: exact → stripped → partial
     let schoolId = schoolMap[nameLower];
     if (!schoolId) {
-      // Fuzzy: strip common words
       const stripped = nameLower.replace(/\b(university|college|institute|of|the|at)\b/g,' ').replace(/\s+/g,' ').trim();
       schoolId = schoolMap[stripped];
     }
     if (!schoolId) {
-      // Fuzzy: partial match
       const found = Object.keys(schoolMap).find(k => k.includes(nameLower) || nameLower.includes(k));
       if (found) schoolId = schoolMap[found];
     }
@@ -2043,7 +2125,7 @@ function parseStatsCSV(text, season) {
     };
   }).filter(Boolean);
 
-  return { rows, season };
+  return { rows, season, division: division || null };
 }
 
 // Column sets for graceful degradation
@@ -2134,10 +2216,11 @@ async function confirmStatsCSVImport() {
   btn.disabled = false; btn.textContent = '✓ import';
 
   await loadStats();
-  setStatsSeason(String(season));
+  // Stay on "all seasons" so previously imported seasons don't appear to vanish
+  setStatsSeason('all');
 
   const errNote = errors ? ` · ${errors} errors` : '';
-  toast(`imported ${saved} / ${matched.length} schools for ${season}${errNote}`);
+  toast(`imported ${saved} / ${matched.length} schools for ${season}${errNote} — switch to ${season} pill to verify`);
 
   // Show SQL migration prompt if columns were missing
   if (needsMigration || (errors > 0 && firstErr && isColError({ message: firstErr }))) {
@@ -2554,7 +2637,7 @@ async function seedD1Stats2025() {
   btn.textContent = '⚡ seed 2025 d1';
 
   await loadStats();
-  setStatsSeason('2025');
+  setStatsSeason('all');
 
   const unmatchedNote = unmatched.length ? ` · ${unmatched.length} unmatched` : '';
   const errNote = errors ? ` · ${errors} errors` : '';
